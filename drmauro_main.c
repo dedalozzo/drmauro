@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include <getopt.h>
 
-#include <SDL2/SDL.h>
+#include "SDL2/SDL.h"
 #include "game.h"
 #include "drmauro.h"
 
