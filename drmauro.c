@@ -10,17 +10,27 @@
 
 
 /**
- * @brief Assegna un nuovo colore al mostro presente alle coordinate `x`, `y` del campo di gioco.
+ * @brief Ritorna un colore a caso tra quelli disponibili.
+ * @details I suddetti colori vengono usati sia per i mostri che per le pastiglie.
+ * @return int
+ */
+int genera_nuovo_colore() {
+    return rand() % (NUMERO_COLORI + 1);
+}
+
+
+/**
+ * @brief Assegna un nuovo colore al mostro presente alle coordinate (x, y) del campo di gioco.
  * @param gioco Puntatore all'istanza del gioco.
  * @param r Riga in cui assegnare il mostro.
  * @param c Colonna in cui assegnare il mostro.
  */
-void assegna_nuovo_colore(struct gioco *gioco, int r, int c) {
+void cambia_colore_mostro(struct gioco *gioco, int r, int c) {
     int colore_attuale = gioco->campo[r][c].colore;
     int nuovo_colore;
 
     do {
-        nuovo_colore = rand() % (NUMERO_COLORI + 1);
+        nuovo_colore = genera_nuovo_colore();
     } while (nuovo_colore == colore_attuale);
 
     gioco->campo[r][c].colore = (enum colore) nuovo_colore;
@@ -59,9 +69,28 @@ void riorganizza_mostri(struct gioco *gioco) {
             // Se il mostro della presente cella è del medesimo colore di quelli delle due celle precedenti della stessa
             // riga o colonna, allora assegna al mostro un altro colore.
             if ((trio_riga || trio_colonna)) {
-                assegna_nuovo_colore(gioco, i, j);
+                cambia_colore_mostro(gioco, i, j);
             }
         }
+    }
+}
+
+
+/**
+ * @brief Ritorna la lettera corrispondente al colore.
+ * @param colore Uno dei colori di mostri e pastiglie.
+ */
+char lettera_colore(enum colore colore) {
+    switch (colore) {
+        case ROSSO:
+            return 'R';
+        case GIALLO:
+            return 'G';
+        case BLU:
+            return 'B';
+        default:
+            fprintf(stderr, "Colore non supportato.\n");
+            exit(1);
     }
 }
 
@@ -87,27 +116,12 @@ void stampa_campo(struct gioco *gioco) {
 
         // Stampa una riga di celle.
         for (int j = 0; j < COLONNE; j++) {
-
-            // Se la cella è vuota, stampa uno spazio e continua.
-            if (gioco->campo[i][j].tipo == VUOTO) {
+            // Se nella cella c'è un mostro, stampa la lettera che corrisponde al colore, as esempio `R`. In caso
+            // contrario stampa uno spazio.
+            if (gioco->campo[i][j].tipo == MOSTRO)
+                printf("%c", lettera_colore(gioco->campo[i][j].colore));
+            else
                 printf(" ");
-                continue;
-            }
-
-            char colore;
-            switch (gioco->campo[i][j].colore) {
-                case ROSSO:
-                    colore = 'R';
-                    break;
-                case GIALLO:
-                    colore = 'G';
-                    break;
-                case BLU:
-                    colore = 'B';
-                    break;
-            }
-
-            printf("%c", colore);
         }
 
         printf("\n");
@@ -359,50 +373,261 @@ void riempi_campo(struct gioco *gioco, int difficolta) {
 }
 
 
-void nessuna_mossa(struct gioco *gioco, enum mossa comando) {
+/**
+ * @brief Scambia il colore dei due pezzi che compongono la pastiglia.
+ * @param pastiglia Una pastiglia.
+ */
+void scambia_colore(struct pastiglia *pastiglia) {
+    enum colore tmp = pastiglia->pezzo1.colore;
+    pastiglia->pezzo1.colore = pastiglia->pezzo2.colore;
+    pastiglia->pezzo2.colore = tmp;
+}
+
+
+/**
+ * @brief Rielabora il campo di gioco.
+ * @details A seguito di ogni mossa valida il campo va aggiornato, poiché la ricollocazione di una pastiglia può aver
+ * determinato l'eliminazione di un mostro e d'altri pezzi di pastiglie.
+ * @param gioco Puntatore all'istanza del gioco.
+ */
+void rielabora_campo(struct gioco *gioco) {
 
 }
 
 
-void ruota_dx() {
+/**
+ * @brief Ricolloca la pastiglia, riposizionando i due pezzi che la compongono sul campo di gioco.
+ * @param pastiglia Una pastiglia.
+ * @return bool Ritorna `true` se è stato possibile ricollocare la pastiglia, `false` altrimenti.
+ */
+bool ricolloca_pastiglia(struct gioco *gioco, struct pastiglia pastiglia) {
+    // Vecchie coordinate dei pezzi di pastiglia.
+    int or1 = gioco->pastiglia.pezzo1.riga;
+    int oc1 = gioco->pastiglia.pezzo1.colonna;
+    int or2 = gioco->pastiglia.pezzo2.riga;
+    int oc2 = gioco->pastiglia.pezzo2.colonna;
 
+    // Nuove coordinate dei pezzi di pastiglia.
+    int r1 = pastiglia.pezzo1.riga;
+    int c1 = pastiglia.pezzo1.colonna;
+    int r2 = pastiglia.pezzo2.riga;
+    int c2 = pastiglia.pezzo2.colonna;
+
+    // Se la pastiglia è fuori campo significa che la mossa è invalida, dunque il controllo ritorna alla funzione
+    // chiamante.
+    if (r1 > RIGHE || c1 > COLONNE || r2 > RIGHE || c2 > COLONNE)
+        return false;
+
+    // La mossa è invalida quando anche solo un pezzo della pastiglia occupa una cella che non è vuota.
+    if (gioco->campo[r1][c1].tipo != VUOTO || (r2 >= 0 && gioco->campo[r2][c2].tipo != VUOTO)) {
+
+        // In questo caso viene fatto un ulteriore controllo per verificare che la pastiglia si trovi proprio nel
+        // mezzo della prima riga. Se così, in virtù del fatto che le celle sono già occupate, la partita è persa,
+        // pertanto lo stato del gioco viene modificato.
+        if (r1 == (COLONNE / 2) - 1) {
+            gioco->stato = SCONFITTA;
+            gioco->pastiglia.attiva = false;
+        }
+
+        return false;
+    }
+
+
+    // RICOLLOCA EFFETTIVAMENTE LA PASTIGLIA
+
+    // Elimina i pezzi di pastiglia dal campo, poiché la pastiglia ha cambiato posizione.
+    gioco->campo[or1][oc1].tipo = VUOTO;
+    gioco->campo[or2][oc2].tipo = VUOTO;
+
+    // Inserisce il primo pezzo di pastiglia nella sua nuova posizione sul campo di gioco.
+    //gioco->campo[r1][c1].tipo = PASTIGLIA;
+    gioco->campo[r1][c1].tipo = VUOTO;
+    gioco->campo[r1][c1].colore = pastiglia.pezzo1.colore;
+
+    // Se il secondo pezzo della pastiglia non è fuori campo allora inserisce anche il secondo pezzo sul campo.
+    if (r2 >= 0) {
+        //gioco->campo[r2][c2].tipo = PASTIGLIA;
+        gioco->campo[r2][c2].tipo = VUOTO;
+        gioco->campo[r2][c2].colore = pastiglia.pezzo2.colore;
+    }
+
+
+    // Una pastiglia viene disattivata quando arriva a fine corsa, dunque nei seguenti casi:
+    //   - si trova sul fondo, ovverosia sull'ultima riga del campo di gioco;
+    //   - sotto al primo pezzo della pastiglia non c'è una cella vuota, bensì un mostro o un altro pezzo di pastiglia;
+    //   - quando l'orientamento della pastiglia è orizzontale e sotto al secondo pezzo della medesima non c'è una
+    //     cella vuota.
+    if (r1 == 0 ||
+            (gioco->campo[r1+1][c1].tipo != VUOTO) ||
+            (pastiglia.orientamento == ORIZZONTALE && gioco->campo[r2+1][c1].tipo != VUOTO)) {
+        pastiglia.attiva = false;
+    }
+
+    // Assegna alla pastiglia del gioco la copia modificata.
+    gioco->pastiglia = pastiglia;
+    gioco->stato = IN_CORSO;
+
+    if (!pastiglia.attiva)
+        rielabora_campo(gioco);
+
+    return true;
 }
 
 
-void ruota_sx() {
+/**
+ * @brief Ruota la pastiglia in senso orario o antiorario.
+ * @details La rotazione avviene sempre mantenendo l'ascissa costante, tranne nel caso in cui
+ * @param gioco Puntatore all'istanza del gioco.
+ * @param senso_rotazione Senso di rotazione.
+ * @return bool Ritorna `true` se è stato possibile ruotare la pastiglia, `false` altrimenti.
+ */
+int ruota_pastiglia(struct gioco *gioco, enum senso senso_rotazione) {
+    if (!gioco->pastiglia.attiva)
+        return false;
 
-}
+    // Dichiara una pastiglia.
+    struct pastiglia pastiglia = gioco->pastiglia;
 
+    switch (gioco->pastiglia.orientamento) {
+        case ORIZZONTALE:
+            // Il primo pezzo della pastiglia rimane al suo posto mentre il secondo pezzo viene
+            // spostato nella riga sopra il primo pezzo.
+            pastiglia.pezzo2.riga--;
 
-void ruota_pastiglia(enum senso senso_rotazione) {
-    switch (senso_rotazione) {
-        case ORARIO:
+            if (senso_rotazione == ORARIO)
+                scambia_colore(&pastiglia);
+
             break;
-        case ANTIORARIO:
+        case VERTICALE:
+            pastiglia.pezzo2.riga++;
+            pastiglia.pezzo2.colonna++;
+
+            // Se il secondo pezzo di pastiglia finisce in una cella che non è vuota, allora shifta a sinistra
+            // l'intera pastiglia di una colonna.
+            if (gioco->campo[pastiglia.pezzo2.riga][pastiglia.pezzo2.colonna].tipo != VUOTO) {
+                pastiglia.pezzo1.colonna--;
+                pastiglia.pezzo2.colonna--;
+            }
+
+            if (senso_rotazione == ANTIORARIO)
+                scambia_colore(&pastiglia);
+
             break;
     }
+
+    return ricolloca_pastiglia(gioco, pastiglia);
 }
 
 
+/**
+ * @brief Sposta la pastiglia.
+ * @details Il giocatore può muovere la pastiglia a destra e sinistra, oppure farla scendere di una posizione o ancora
+ * farla cadere verso il basso sino a che non incontra un'altra pastiglia, un virus o il fondo del campo di gioco.
+ * @param gioco Puntatore all'istanza del gioco.
+ * @param direzione La direzione in cui la pastiglia dovrebbe spostarsi.
+ * @return bool Ritorna `true` se è stato possibile spostare la pastiglia, `false` altrimenti.
+ */
+bool sposta_pastiglia(struct gioco *gioco, enum mossa direzione) {
+    if (!gioco->pastiglia.attiva)
+        return false;
+
+    // Dichiara una pastiglia.
+    struct pastiglia pastiglia = gioco->pastiglia;
+
+    switch (direzione) {
+        int i;
+
+        case DESTRA:
+            pastiglia.pezzo1.colonna++;
+            pastiglia.pezzo2.colonna++;
+            break;
+        case SINISTRA:
+            pastiglia.pezzo1.colonna--;
+            pastiglia.pezzo2.colonna--;
+            break;
+        case GIU:
+            for (i = pastiglia.pezzo1.riga + 1; i < RIGHE; ++i) {
+                if (gioco->campo[i][pastiglia.pezzo1.colonna].tipo != VUOTO)
+                    break;
+
+                if (gioco->pastiglia.orientamento == ORIZZONTALE && gioco->campo[i][pastiglia.pezzo2.colonna].tipo != VUOTO)
+                    break;
+            }
+
+            // Sposta verso il basso le pastiglie.
+            pastiglia.pezzo1.riga = i;
+            pastiglia.pezzo2.riga = i;
+
+            break;
+        case NONE:
+            pastiglia.pezzo1.riga++;
+            pastiglia.pezzo2.riga++;
+            break;
+        default:
+            return false;
+    }
+
+    return ricolloca_pastiglia(gioco, pastiglia);
+}
+
+
+/**
+ * @brief Crea una nuova pastiglia.
+ * @details L'orientamento di ogni nuova pastiglia è sempre orizzontale.
+ * @param gioco Puntatore all'istanza del gioco.
+ */
+void crea_pastiglia(struct gioco *gioco) {
+    gioco->pastiglia.orientamento = ORIZZONTALE;
+
+    gioco->pastiglia.pezzo1.riga = 0;
+    gioco->pastiglia.pezzo1.colonna = (COLONNE / 2) - 1;
+    gioco->pastiglia.pezzo1.colore = (enum colore) genera_nuovo_colore();
+
+    gioco->pastiglia.pezzo2.riga = 0;
+    gioco->pastiglia.pezzo2.colonna = gioco->pastiglia.pezzo1.colonna + 1;
+    gioco->pastiglia.pezzo2.colore = (enum colore) genera_nuovo_colore();
+
+    gioco->pastiglia.attiva = true;
+}
+
+
+/**
+ * @brief Implementa la logica del videogioco.
+ * @details Il giocatore può muovere la pastiglia a destra e sinistra, ruotarla in senso orario e antiorario, farla
+ * cadere verso il basso, oppure non fare nulla, nel qual caso il programma farà scendere verso il basso la pastiglia
+ * attiva di una posizione. Se non vi è nessuna pastiglia attiva la funzione ne crea una e la posiziona a metà della
+ * prima riga.
+ * @param gioco Puntatore all'istanza del gioco.
+ * @param comando Comando impartito dal giocatore.
+ */
 void step(struct gioco *gioco, enum mossa comando) {
 
     switch (comando) {
         case DESTRA:
+            sposta_pastiglia(gioco, DESTRA);
             break;
 
         case SINISTRA:
+            sposta_pastiglia(gioco, SINISTRA);
             break;
 
         case GIU:
+            sposta_pastiglia(gioco, GIU);
             break;
 
         case ROT_DX:
+            ruota_pastiglia(gioco, ORARIO);
             break;
 
         case ROT_SX:
+            ruota_pastiglia(gioco, ANTIORARIO);
             break;
 
         case NONE:
+            if (!gioco->pastiglia.attiva)
+                crea_pastiglia(gioco);
+            else
+                sposta_pastiglia(gioco, NONE);
             break;
 
         default:
@@ -412,6 +637,11 @@ void step(struct gioco *gioco, enum mossa comando) {
 }
 
 
+/**
+ * @brief Ritorna lo stato del gioco.
+ * @return stato
+ * @param gioco Puntatore all'istanza del gioco.
+ */
 enum stato vittoria(struct gioco *gioco) {
-	return IN_CORSO;
+	return gioco->stato;
 }
