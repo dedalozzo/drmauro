@@ -36,7 +36,9 @@ struct cella {
 struct gioco {
   struct cella campo[RIGHE][COLONNE];
   struct pastiglia pastiglia;
+  struct pastiglia pastiglia_temp;
   enum stato stato;
+  bool aggiorna_campo;
   int punti;
 };
 
@@ -44,6 +46,7 @@ struct gioco {
 void stampa_campo(struct gioco *gioco);
 void carica_campo(struct gioco *gioco, char *percorso);
 void riempi_campo(struct gioco *gioco, int difficolta);
+void aggiorna_campo(struct gioco *gioco);
 void step(struct gioco *gioco, enum mossa comando);
 enum stato vittoria(struct gioco *gioco);
 
