@@ -181,6 +181,9 @@ int main(int argc, char **argv) {
   SDL_Window *window;
   SDL_Surface *screen;
 
+  // Utilizza `srand()` con `time(NULL)` affinché l'allocazione non sia la medesima ogni volta che si esegue il gioco.
+  srand(time(NULL));
+
   int running = 1;
   enum mossa command = NONE;
   int prev_time;
@@ -279,6 +282,9 @@ int main(int argc, char **argv) {
       command = NONE;
       acc_time = 0;
     }
+    
+    aggiorna_campo(game_state);
+
     /* Draw the game state */
     draw_background(screen, game_state);
     draw_board(screen, game_state);
