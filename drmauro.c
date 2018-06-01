@@ -393,6 +393,39 @@ void rielabora_campo(struct gioco *gioco) {
 
 
 /**
+ * @brief Cambia il contenuto dei pezzi che costituiscono la pastiglia attiva.
+ * @param gioco Puntatore all'istanza del gioco.
+ */
+void cambia_tipo(struct gioco *gioco, enum contenuto tipo) {
+    struct pastiglia *p = &gioco->pastiglia;
+
+    if (!p->attiva)
+        return;
+
+    gioco->campo[p->pezzo1.riga][p->pezzo1.colonna].tipo = tipo;
+    gioco->campo[p->pezzo2.riga][p->pezzo2.colonna].tipo = tipo;
+};
+
+
+/**
+ * @brief Rimuove la pastiglia corrente dal campo.
+ * @param gioco Puntatore all'istanza del gioco.
+ */
+void rimuovi_pastiglia(struct gioco *gioco) {
+    cambia_tipo(gioco, VUOTO);
+}
+
+
+/**
+ * @brief Ripristina la pastiglia corrente sul campo.
+ * @param gioco Puntatore all'istanza del gioco.
+ */
+void ripristina_pastiglia(struct gioco *gioco) {
+    cambia_tipo(gioco, PASTIGLIA);
+}
+
+
+/**
  * @brief Aggiorna il campo da gioco, riposizionando i due pezzi che compongono la posizione della
  * pastiglia sul campo di gioco.
  * @param gioco Puntatore all'istanza del gioco.
@@ -418,15 +451,22 @@ void aggiorna_campo(struct gioco *gioco) {
     int r2 = temp->pezzo2.riga;
     int c2 = temp->pezzo2.colonna;
 
+    // Rimuove temporaneamente la pastiglia, così quando verifica il campo non vi sono interferenze.
+    rimuovi_pastiglia(gioco);
+
     // Se la pastiglia è fuori campo significa che la mossa è invalida, dunque il controllo ritorna alla funzione
     // chiamante.
-    if (r1 > RIGHE || c1 > COLONNE || r2 > RIGHE || c2 > COLONNE) {
-        pastiglia->attiva = false;
+    if (r1 > RIGHE-1 || c1 > COLONNE-1 || r2 > RIGHE-1 || c2 > COLONNE-1 || c1 < 0 || c2 < 0) {
+        ripristina_pastiglia(gioco);
         return;
     }
 
     // La mossa è invalida quando anche solo un pezzo della pastiglia occupa una cella che non è vuota.
-    if (gioco->campo[r1][c1].tipo != VUOTO || (r2 >= 0 && gioco->campo[r2][c2].tipo != VUOTO)) {
+    // (r1, c1) e (r2, c2) sono le coordinate delle celle che la pastiglia dovrebbe andare ad occupare.
+    // Il controllo `r2 >= 0` serve ad evitare che il programma termini nel qual caso la pastiglia sia in verticale
+    // e sfori dalla griglia. `r2` infatti potrebbe essere uguale a `-1`.
+    // fuori dalla griglia.
+    if ((gioco->campo[r1][c1].tipo != VUOTO) || (r2 >= 0 && gioco->campo[r2][c2].tipo != VUOTO)) {
 
         // In questo caso viene fatto un ulteriore controllo per verificare che la pastiglia si trovi proprio nel
         // mezzo della prima riga. Se così, in virtù del fatto che le celle sono già occupate, la partita è persa,
@@ -436,6 +476,7 @@ void aggiorna_campo(struct gioco *gioco) {
         }
 
         pastiglia->attiva = false;
+        ripristina_pastiglia(gioco);
 
         return;
     }
@@ -465,9 +506,9 @@ void aggiorna_campo(struct gioco *gioco) {
     //   - sotto al primo pezzo della pastiglia non c'è una cella vuota, bensì un mostro o un altro pezzo di pastiglia;
     //   - quando l'orientamento della pastiglia è orizzontale e sotto al secondo pezzo della medesima non c'è una
     //     cella vuota.
-    if (r1 == RIGHE ||
+    if (r1 == RIGHE - 1 ||
             (gioco->campo[r1+1][c1].tipo != VUOTO) ||
-            (pastiglia->orientamento == ORIZZONTALE && gioco->campo[r2+1][c1].tipo != VUOTO)) {
+            (temp->orientamento == ORIZZONTALE && gioco->campo[r2+1][c2].tipo != VUOTO)) {
         temp->attiva = false;
     }
 
@@ -501,9 +542,12 @@ void ruota_pastiglia(struct gioco *gioco, enum senso senso_rotazione) {
             // Il primo pezzo della pastiglia rimane al suo posto mentre il secondo pezzo viene
             // spostato nella riga sopra il primo pezzo.
             temp.pezzo2.riga--;
+            temp.pezzo2.colonna--;
 
             if (senso_rotazione == ORARIO)
                 scambia_colore(&temp);
+
+            temp.orientamento = VERTICALE;
 
             break;
         case VERTICALE:
@@ -512,13 +556,15 @@ void ruota_pastiglia(struct gioco *gioco, enum senso senso_rotazione) {
 
             // Se il secondo pezzo di pastiglia finisce in una cella che non è vuota, allora shifta a sinistra
             // l'intera pastiglia di una colonna.
-            if (gioco->campo[temp.pezzo2.riga][gioco->pastiglia_temp.pezzo2.colonna].tipo != VUOTO) {
+            if (gioco->campo[temp.pezzo2.riga][temp.pezzo2.colonna].tipo != VUOTO) {
                 temp.pezzo1.colonna--;
                 temp.pezzo2.colonna--;
             }
 
             if (senso_rotazione == ANTIORARIO)
                 scambia_colore(&temp);
+
+            temp.orientamento = ORIZZONTALE;
 
             break;
     }
@@ -557,18 +603,20 @@ void sposta_pastiglia(struct gioco *gioco, enum mossa direzione) {
                 int i = temp.pezzo1.riga + 1;
 
                 while (i < RIGHE) {
-                    if (gioco->campo[i][temp.pezzo1.colonna].tipo != VUOTO)
-                        break;
-
-                    if (temp.orientamento == ORIZZONTALE && gioco->campo[i][temp.pezzo2.colonna].tipo != VUOTO)
+                    // Se il posto della pastiglia non è vuoto, allora si ferma.
+                    if (gioco->campo[i][temp.pezzo1.colonna].tipo != VUOTO && gioco->campo[i][temp.pezzo2.colonna].tipo != VUOTO)
                         break;
 
                     i++;
                 }
 
                 // Sposta verso il basso le pastiglie.
-                temp.pezzo1.riga = --i;
-                temp.pezzo2.riga = i;
+                temp.pezzo1.riga = i - 1;
+
+                if (temp.orientamento == ORIZZONTALE)
+                    temp.pezzo2.riga = i - 1;
+                else
+                    temp.pezzo2.riga = i - 2;
             }
             break;
         case NONE:
