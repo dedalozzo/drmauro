@@ -282,7 +282,7 @@ int main(int argc, char **argv) {
       command = NONE;
       acc_time = 0;
     }
-    
+
     aggiorna_campo(game_state);
 
     /* Draw the game state */
