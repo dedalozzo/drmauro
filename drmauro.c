@@ -545,8 +545,6 @@ void sposta_pastiglia(struct gioco *gioco, enum mossa direzione) {
     struct pastiglia temp = gioco->pastiglia;
 
     switch (direzione) {
-        int i;
-
         case DESTRA:
             temp.pezzo1.colonna++;
             temp.pezzo2.colonna++;
@@ -555,19 +553,23 @@ void sposta_pastiglia(struct gioco *gioco, enum mossa direzione) {
             temp.pezzo1.colonna--;
             temp.pezzo2.colonna--;
             break;
-        case GIU:
-            for (i = temp.pezzo1.riga + 1; i < RIGHE; ++i) {
-                if (gioco->campo[i][temp.pezzo1.colonna].tipo != VUOTO)
-                    break;
+        case GIU: {
+                int i = temp.pezzo1.riga + 1;
 
-                if (gioco->pastiglia.orientamento == ORIZZONTALE && gioco->campo[i][temp.pezzo2.colonna].tipo != VUOTO)
-                    break;
+                while (i < RIGHE) {
+                    if (gioco->campo[i][temp.pezzo1.colonna].tipo != VUOTO)
+                        break;
+
+                    if (temp.orientamento == ORIZZONTALE && gioco->campo[i][temp.pezzo2.colonna].tipo != VUOTO)
+                        break;
+
+                    i++;
+                }
+
+                // Sposta verso il basso le pastiglie.
+                temp.pezzo1.riga = --i;
+                temp.pezzo2.riga = i;
             }
-
-            // Sposta verso il basso le pastiglie.
-            temp.pezzo1.riga = i;
-            temp.pezzo2.riga = i;
-
             break;
         case NONE:
             temp.pezzo1.riga++;
