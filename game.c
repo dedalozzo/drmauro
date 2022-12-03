@@ -32,6 +32,7 @@ font *make_font(char *image_path, int w, int h) {
   return f;
 }
 
+
 void font_draw_char(font *f, SDL_Surface *dst, char ch, int x, int y, float scale) {
   SDL_Rect srect, drect;
   srect.x = (ch % 32) * f->w;
@@ -41,6 +42,7 @@ void font_draw_char(font *f, SDL_Surface *dst, char ch, int x, int y, float scal
   SDL_BlitScaled(f->image, &srect, dst, &drect);
 }
 
+
 void font_draw_string(font *f, SDL_Surface *dst, char *str, int x, int y, float scale) {
   while (*str) {
     font_draw_char(f, dst, *str, x,y,scale);
@@ -49,10 +51,12 @@ void font_draw_string(font *f, SDL_Surface *dst, char *str, int x, int y, float 
   }
 }
 
+
 void font_free(font *f) {
   SDL_FreeSurface(f->image);
   free(f);
 }
+
 
 animation *make_animation(SDL_Rect *frames, int frames_len, double frame_duration) {
   int i;
@@ -69,10 +73,12 @@ animation *make_animation(SDL_Rect *frames, int frames_len, double frame_duratio
   return a;
 }
 
+
 void animation_step(animation *a, double delta_time) {
   a->total_time += delta_time;
   a->current_time = fmod(a->total_time, a->frames_len*a->frame_duration); 
 }
+
 
 SDL_Rect animation_current_frame(animation *a) {
   return a->frames[(int)(a->current_time / a->frame_duration)];
@@ -82,6 +88,7 @@ void animation_free(animation *a) {
   free(a->frames);
   free(a);
 }
+
 
 sprite *make_sprite(char *image_path, SDL_Rect rect, animation *a) {
   sprite *s = malloc(sizeof(sprite));
@@ -93,6 +100,7 @@ sprite *make_sprite(char *image_path, SDL_Rect rect, animation *a) {
   return s;
 }
 
+
 void sprite_draw(sprite *s, SDL_Surface *dst, int x, int y) {
   SDL_Rect srect = s->rect, drect = s->rect;
   if (s->animation) {
@@ -102,6 +110,7 @@ void sprite_draw(sprite *s, SDL_Surface *dst, int x, int y) {
   drect.x = x; drect.y = y;
   SDL_BlitSurface(s->sfc, &srect, dst, &drect);
 }
+
 
 void sprite_free(sprite *s){
   SDL_FreeSurface(s->sfc);

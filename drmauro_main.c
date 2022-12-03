@@ -25,14 +25,18 @@
 #include "drmauro.h"
 
 #define TITLE "DR. MAURO"
-#define WIDTH 480
-#define HEIGHT 320
+//#define WIDTH 480
+//#define HEIGHT 320
+#define WIDTH 600
+#define HEIGHT 640
 
-#define BOARD_W (COLONNE * (CELL_SIZE +2))
-#define BOARD_H (RIGHE * (CELL_SIZE +2))
+
+#define BOARD_W (COLUMNS * (CELL_SIZE +2))
+#define BOARD_H (ROWS * (CELL_SIZE +2))
 #define BOARD_X ((WIDTH - BOARD_W)/2)-98
 #define BOARD_Y ((HEIGHT - BOARD_H)/2)
 #define CELL_SIZE 14
+
 
 /******************************************************************************/
 /* GLOBALS                                                                    */
@@ -46,6 +50,7 @@ int enemies_len = 3;
 
 sprite **pills;
 int pills_len = 3;
+
 
 /******************************************************************************/
 /* SPRITES                                                                    */
@@ -84,11 +89,13 @@ void load_spites() {
   }
 }
 
+
 void update_sprites(double delta_time) {
   int i;
   for (i=0; i<enemies_len; i++)
     animation_step(enemies[i]->animation, delta_time);
 }
+
 
 void free_sprites() {
   int i;
@@ -101,10 +108,11 @@ void free_sprites() {
   font_free(dr_font);
 }
 
+
 /******************************************************************************/
 /* DRAW                                                                       */
 
-void draw_background(SDL_Surface *screen,  struct gioco *game_state) {
+void draw_background(SDL_Surface *screen,  struct game *game_state) {
   int i, j;
   SDL_Rect rect;
   char scores[200];
@@ -126,11 +134,11 @@ void draw_background(SDL_Surface *screen,  struct gioco *game_state) {
     y = ((HEIGHT-score_bg->rect.h)/2)+16;
     sprite_draw(score_bg, screen, x, y);
     font_draw_string(dr_font, screen, "SCORE",x+20,y+32, 1);
-    sprintf(scores, "%06d", game_state->punti);
+    sprintf(scores, "%06d", game_state->score);
     font_draw_string(dr_font, screen, scores,x+20,y+48, 1);
-    for (i=0; i<RIGHE; i++)
-      for (j=0; j<COLONNE; j++)
-        if (game_state->campo[i][j].tipo == MOSTRO) virus++;
+    for (i=0; i < ROWS; i++)
+      for (j=0; j < COLUMNS; j++)
+        if (game_state->grid[i][j].type == VIRUS) virus++;
     font_draw_string(dr_font, screen, "VIRUS", x+20, y+64,1);
     sprintf(scores, "%06d", virus);
     font_draw_string(dr_font, screen, scores, x+20, y+80, 1);
@@ -144,21 +152,23 @@ void draw_background(SDL_Surface *screen,  struct gioco *game_state) {
   SDL_FillRect(screen, &rect, SDL_MapRGB(screen->format, 0,0,0));
 }
 
-void draw_board(SDL_Surface *screen,  struct gioco *game_state) {
+
+void draw_board(SDL_Surface *screen,  struct game *game_state) {
   int i, j;
-  for (i=0; i<RIGHE; i++)
-    for (j=0; j<COLONNE; j++) {
-      struct cella *cella = &game_state->campo[i][j];
-      switch (cella->tipo) {
-      case MOSTRO:
-      case PASTIGLIA:
-        sprite_draw(((cella->tipo == MOSTRO)?enemies:pills)[cella->colore],
+  for (i=0; i < ROWS; i++)
+    for (j=0; j < COLUMNS; j++) {
+      struct cell *cella = &game_state->grid[i][j];
+      switch (cella->type) {
+      case VIRUS:
+      case PILL:
+        sprite_draw(((cella->type == VIRUS) ? enemies : pills)[cella->color],
                     screen, BOARD_X + j*16, BOARD_Y + i*16);
         break;
       default: /* do nothing */ break;
       }
     }
 }
+
 
 /******************************************************************************/
 /* MAIN                                                                       */
@@ -176,20 +186,21 @@ void usage() {
   exit(1);
 }
 
+
 int main(int argc, char **argv) {
 
   SDL_Window *window;
   SDL_Surface *screen;
 
-  // Utilizza `srand()` con `time(NULL)` affinché l'allocazione non sia la medesima ogni volta che si esegue il gioco.
+  // Uses `srand()` with `time(NULL)` so that the allocation is not the same each time you play the game.
   srand(time(NULL));
 
   int running = 1;
-  enum mossa command = NONE;
+  enum command command = NONE;
   int prev_time;
   double acc_time;
 
-  struct gioco *game_state;
+  struct game *game_state;
   char *board_file = NULL;
   int difficulty = 5;
   double speed = 0.3;
@@ -213,7 +224,7 @@ int main(int argc, char **argv) {
 
 
   /* Initialize the game */
-  game_state = calloc(1,sizeof(struct gioco));
+  game_state = calloc(1,sizeof(struct game));
   if (!game_state) ERROR(("malloc error"));
 
   /* Initialize SDL */
@@ -228,9 +239,9 @@ int main(int argc, char **argv) {
   load_spites();
 
   if (board_file)
-    carica_campo(game_state, board_file);
+    load_grid(game_state, board_file);
   else
-    riempi_campo(game_state, difficulty);
+    fill_grid(game_state, difficulty);
 
   prev_time = SDL_GetTicks();
   acc_time = 0;
@@ -250,11 +261,11 @@ int main(int argc, char **argv) {
       case SDL_QUIT: running = 0; break;
       case SDL_KEYUP:
         switch (e.key.keysym.sym) {
-        case SDLK_LEFT:  command = SINISTRA; break;
-        case SDLK_RIGHT: command = DESTRA;   break;
-        case SDLK_x:     command = ROT_DX;   break;
-        case SDLK_z:     command = ROT_SX;   break;
-        case SDLK_DOWN:  command = GIU;      break;
+        case SDLK_LEFT:  command = LEFT; break;
+        case SDLK_RIGHT: command = RIGHT;   break;
+        case SDLK_x:     command = CLOCKWISE_ROTATION;   break;
+        case SDLK_z:     command = ANTICLOCKWISE_ROTATION;   break;
+        case SDLK_DOWN:  command = DOWN;      break;
         case SDLK_q:     running = 0;        break;
         }
         break;
@@ -264,26 +275,28 @@ int main(int argc, char **argv) {
     /* Execute commands every speed seconds */
     if (acc_time > speed) {
       /* Check Victory */
-      switch(vittoria(game_state)) {
-      case SCONFITTA:
+      switch(victory(game_state)) {
+
+      case DEFEAT:
         running = 0;
-        printf("Hai Perso. \nPunteggio: %d\n", game_state->punti);
+        printf("Game Over. \nScore: %d\n", game_state->score);
         break;
-      case VITTORIA:
+
+      case VICTORY:
         running = 0;
-        printf("Vittoria! \nPunteggio: %d\n", game_state->punti);
+        printf("You won! \nScore: %d\n", game_state->score);
         break;
+
       default:
         break;
       }
       /* Update State */
-      step(game_state, command);
+      execute(game_state, command);
+
       /* Reset Commands */
       command = NONE;
       acc_time = 0;
     }
-
-    aggiorna_campo(game_state);
 
     /* Draw the game state */
     draw_background(screen, game_state);

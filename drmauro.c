@@ -10,701 +10,777 @@
 
 
 /**
- * @brief Ritorna un colore a caso tra quelli disponibili.
- * @details I suddetti colori vengono usati sia per i mostri che per le pastiglie.
+ * @brief Returns a random color between the ones available.
+ * @details Such colors are used for virus and pills independently.
  * @return int
  */
-int genera_nuovo_colore() {
-    return rand() % NUMERO_COLORI;
+int get_random_color() {
+  return rand() % COLORS_COUNT;
 }
 
 
 /**
- * @brief Assegna un nuovo colore al mostro presente alle coordinate (x, y) del campo di gioco.
- * @param gioco Puntatore all'istanza del gioco.
- * @param r Riga in cui assegnare il mostro.
- * @param c Colonna in cui assegnare il mostro.
+ * @brief Assigns a new color to the virus at the coordinates (x, y) of the grid.
+ * @param game Pointer to the game instance.
+ * @param x Position on the x-axis.
+ * @param y Position on the y-axis.
  */
-void cambia_colore_mostro(struct gioco *gioco, int r, int c) {
-    int colore_attuale = gioco->campo[r][c].colore;
-    int nuovo_colore;
+void change_virus_color(struct game *game, int x, int y) {
+  int current_color = game->grid[x][y].color;
+  int new_color;
 
-    do {
-        nuovo_colore = genera_nuovo_colore();
-    } while (nuovo_colore == colore_attuale);
+  do {
+    new_color = get_random_color();
+  } while (new_color == current_color);
 
-    gioco->campo[r][c].colore = (enum colore) nuovo_colore;
+  game->grid[x][y].color = (enum color) new_color;
 }
 
 
 /**
- * @brief Riorgannizza i mostri per evitare che vi siano più di due mostri adiacenti del medesimo colore nella stessa
- * fila. La regola vale sia per le righe che per le colonne.
- * @param gioco Puntatore all'istanza del gioco.
+ * @brief Reorganizes the viruses to avoid the presence of two of more consecutive viruss of the same color on the
+ * same line. The rule applies to both rows and columns.
+ * @param game Pointer to the game instance.
  */
-void riorganizza_mostri(struct gioco *gioco) {
-    int i, j;
+void reorganize_viruses(struct game *game) {
+  int x, y;
 
-    int prima_riga = RIGHE_NO_MOSTRI;
-    int prima_colonna = 2;
+  int first_row = INVALIDE_ROWS;
+  int first_column = 2;
 
-    for (i = prima_riga; i < RIGHE; i++) {
-        for (j = prima_colonna; j < COLONNE; j++) {
+  for (x = first_row; x < ROWS; x++) {
+    for (y = first_column; y < COLUMNS; y++) {
 
-            // Se non è presente un mostro nella cella, allora continua.
-            if (gioco->campo[i][j].tipo == VUOTO)
-                continue;
+      // If the cell is empty, then continue.
+      if (game->grid[x][y].type == EMPTY)
+        continue;
 
-            // Colore del mostro della presente cella.
-            int colore = gioco->campo[i][j].colore;
+      // This is the color of the virus at the coordinates `x`, `y`.
+      int color = game->grid[x][y].color;
 
-            // Vero se, sulla medesima riga, i due mostri nelle celle adiacenti sono dello stesso colore.
-            bool trio_riga = gioco->campo[i][j-1].tipo == MOSTRO && colore == gioco->campo[i][j-1].colore &&
-                                  gioco->campo[i][j-2].tipo == MOSTRO && colore == gioco->campo[i][j-2].colore;
+      // True when there are two consecutive viruss of the same color on the same row or column.
+      bool invalid = (game->grid[x][y - 1].type == VIRUS && color == game->grid[x][y - 1].color &&
+                      game->grid[x][y - 2].type == VIRUS && color == game->grid[x][y - 2].color) ||
+                     (game->grid[x - 1][y].type == VIRUS && game->grid[x - 1][y].color &&
+                      game->grid[x - 2][y].type == VIRUS && color == game->grid[x - 2][y].color);
 
-            // Vero se, sulla medesima colonna, i due mostri nelle celle adiacenti sono dello stesso colore.
-            bool trio_colonna = gioco->campo[i-1][j].tipo == MOSTRO && gioco->campo[i-1][j].colore &&
-                                     gioco->campo[i-2][j].tipo == MOSTRO && colore == gioco->campo[i-2][j].colore;
-
-            // Se il mostro della presente cella è del medesimo colore di quelli delle due celle precedenti della stessa
-            // riga o colonna, allora assegna al mostro un altro colore.
-            if ((trio_riga || trio_colonna)) {
-                cambia_colore_mostro(gioco, i, j);
-            }
-        }
+      // Se il mostro della presente cell è del medesimo color di quelli delle due celle precedenti della stessa
+      // row o column, allora assegna al mostro un altro color.
+      if (invalid) {
+        change_virus_color(game, x, y);
+      }
     }
+  }
 }
 
 
 /**
- * @brief Ritorna la lettera corrispondente al colore.
- * @param colore Uno dei colori di mostri e pastiglie.
+ * @brief Returns the correspondent letter to a color.
+ * @param color A color of a virus or a pill.
  */
-char lettera_colore(enum colore colore) {
-    switch (colore) {
-        case ROSSO:
-            return 'R';
-        case GIALLO:
-            return 'G';
-        case BLU:
-            return 'B';
-        default:
-            fprintf(stderr, "Colore non supportato.\n");
-            exit(1);
+char get_letter_color(enum color color) {
+  switch (color) {
+    case RED:
+      return 'R';
+    case YELLOW:
+      return 'G';
+    case BLUE:
+      return 'B';
+    default:
+      fprintf(stderr, "Color not supported.\n");
+      exit(1);
+  }
+}
+
+
+/**
+ * @brief Prints the grid.
+ * @param game Pointer to the game instance.
+ */
+void print_grid(struct game *game) {
+  // Print the header.
+  for (int j = 0; j < COLUMNS; j++)
+    printf("=");
+
+  printf("\nGRID\n");
+
+  for (int j = 0; j < COLUMNS; j++)
+    printf("=");
+
+  printf("\n");
+
+  // Prints the grid.
+  for (int i = 0; i < ROWS; i++) {
+
+    // Prints one row of cells.
+    for (int j = 0; j < COLUMNS; j++) {
+      // If there is a virus in the cell, then prints the letter correspondent to the virus's color, e.g. `R`.
+      // Otherwise prints a space.
+      if (game->grid[i][j].type == VIRUS)
+        printf("%c", get_letter_color(game->grid[i][j].color));
+      else
+        printf(" ");
     }
-}
-
-
-/**
- * @brief Stampa il campo di gioco.
- * @param gioco Puntatore all'istanza del gioco.
- */
-void stampa_campo(struct gioco *gioco) {
-    // Stampa l'intestazione.
-    for (int j = 0; j < COLONNE; j++)
-        printf("=");
-
-    printf("\nCAMPO\n");
-
-    for (int j = 0; j < COLONNE; j++)
-        printf("=");
 
     printf("\n");
-
-    // Stampa il campo di gioco vero e proprio.
-    for (int i = 0; i < RIGHE; i++) {
-
-        // Stampa una riga di celle.
-        for (int j = 0; j < COLONNE; j++) {
-            // Se nella cella c'è un mostro, stampa la lettera che corrisponde al colore, as esempio `R`. In caso
-            // contrario stampa uno spazio.
-            if (gioco->campo[i][j].tipo == MOSTRO)
-                printf("%c", lettera_colore(gioco->campo[i][j].colore));
-            else
-                printf(" ");
-        }
-
-        printf("\n");
-    }
+  }
 }
 
 
 /**
- * @brief Inizializza eventuali caselle vuote nella riga, qualora lo schema termini con una nuova linea prima
- * del dovuto.
- * @param gioco Puntatore all'istanza del gioco.
- * @param r Riga corrente.
- * @param c Colonna corrente.
+ * @brief Initializes eventual empty cells in the specified row, in case the loaded grid terminates with a new line
+ * before it should.
+ * @param game Pointer to the game instance.
+ * @param r Current row.
+ * @param c Current column.
  */
-void completa_riga(struct gioco *gioco, int r, int c) {
-    for (int i = c; i < COLONNE; i++) {
-        gioco->campo[r][i].tipo = VUOTO;
-    }
+void init_row(struct game *game, int r, int c) {
+  for (int i = c; i < COLUMNS; i++) {
+    game->grid[r][i].type = EMPTY;
+  }
 }
 
 
 /**
- * @brief Inizializza eventuali caselle vuote nel campo, qualora lo schema termini con una nuova linea prima
- * del dovuto.
- * @param gioco Puntatore all'istanza del gioco.
- * @param r Riga corrente.
- * @param c Colonna corrente.
+ * @brief Initializes all the empty cells in the grid, row by row.
+ * @param game Pointer to the game instance.
+ * @param r Current row.
+ * @param c Current column.
  */
-void completa_campo(struct gioco *gioco, int r, int c) {
-    for (int i = r; i < RIGHE; i++) {
-        completa_riga(gioco, i, c);
-        c = 0;
-    }
+void init_grid(struct game *game, int r, int c) {
+  for (int i = r; i < ROWS; i++) {
+    init_row(game, i, c);
+    c = 0;
+  }
 }
 
 
 /**
-  * @brief Carica il campo gioco leggendone lo schema da un file di testo passato a linea di comando con l'opzione `-f`.
-  * @details Il file contiene tante righe quante il campo da gioco. Ogni riga può esclusivamente contenere i seguenti
-  * caratteri:\n
-  *   - `R` identifica un virus rosso;\n
-  *   - `G` identifica un virus giallo;\n
-  *   - `B` identifica un virus blu;\n
-  *   - lo spazio, identifica una cella vuota.\n
-  * La funzione verifica sia la presenza di caratteri non consentiti, nel cui caso ritorna un errore e termina
-  * l'esecuzione del programma.\n
-  * La funzione accetta il file anche in caso di mancato inserimento di eventuali spazi prima del fine linea, quando
-  * ad esempio non è indicato il colore del mostro per l'ultima cella di una riga qualunque.\n
-  * Lo schema viene poi riorganizzato per prevenire che siano stati inseriti più di due mostri consecutivi dello stesso
-  * colore. Si è preferito utilizzare questo approccio invece che generare un errore di schema invalido. Le specifiche,
-  * infatti, non fanno menzione a nessun controllo, assumendo che il file contenente lo schema del campo sia
-  * necessariamente corretto. L'implementazione corrente consente una maggiore elasticità.
-  * @param gioco Puntatore all'istanza del gioco.
-  * @param percorso Path del file di testo da cui caricare la posizione dei mostri sul campo da gioco.
+  * @brief Loads the grid, reading the layout from a text file, whose name is provided through the command line with
+  * the option `-f`.
+  * @details The file contains as many rows as the grid. Each row can only have the following characters:\n
+  *   - `R` identifies a red virus;\n
+  *   - `G` identifies a yellow virus;\n
+  *   - `B` identifies a blue virus;\n
+  *   - the space identifies an empty cell.\n
+  * The function verifies the presence of unwanted characters, in the event that returns an error and halt the program's
+  * execution.\n
+  * The function acceps the file even in case there are some missing spaces before the line break.\n
+  * The schema is then reorganised to prevent that there are two or more consecutive viruses of the same color.
+  * It was decided to use this approach, instead of trigger an error for invalid scheme. The specifications,
+  * in fact, don't mention any check, assuming the file is always correct, when it might not be.
+  * The current implementation provides a better elasticity.
+  * @param game Pointer to the game instance.
+  * @param path The filepath of the text file.
   */
-void carica_campo(struct gioco *gioco, char *percorso) {
-    FILE *fp = fopen(percorso, "r");
+void load_grid(struct game *game, char *path) {
+  FILE *fp = fopen(path, "r");
 
-    // Nel caso il file non si riesca ad aprire, stampa a video un errore e termina l'esecuzione del programma.
-    if (!fp) {
-        fprintf(stderr, "Non è stato possibile aprire il file.\n");
+  // In case the file cannot be opened, displays an error and terminates the exection of the program.
+  if (!fp) {
+    fprintf(stderr, "Cannot open the file.\n");
+    exit(1);
+  }
+
+  // Variable used to store the character read.
+  int character;
+
+  // X-axis and y-axis coordinates.
+  int x = 0, y = 0;
+
+  do {
+    character = fgetc(fp);
+
+    switch (character) {
+      case 'R':
+        game->grid[x][y].type = VIRUS;
+        game->grid[x][y].color = RED;
+        y++;
+        break;
+      case 'G':
+        game->grid[x][y].type = VIRUS;
+        game->grid[x][y].color = YELLOW;
+        y++;
+        break;
+      case 'B':
+        game->grid[x][y].type = VIRUS;
+        game->grid[x][y].color = BLUE;
+        y++;
+        break;
+      case ' ':
+        game->grid[x][y].type = EMPTY;
+        y++;
+        break;
+      case '\n':
+        init_row(game, x, y);
+        x++;
+        y = 0;
+        break;
+      case EOF:
+        init_grid(game, x, y);
+        break;
+      default:
+        fprintf(stderr, "The file contains an invalid character.\n");
         exit(1);
     }
 
-    // Variabile usata per memorizzare il carattere letto.
-    int carattere;
+  } while (character != EOF);
 
-    // Coordinate cartesiane della cella nella matrice che rappresenta il campo di gioco.
-    int r = 0, c = 0;
+  fclose(fp);
 
-    do {
-        carattere = fgetc(fp);
+  reorganize_viruses(game);
 
-        switch (carattere) {
-            case 'R':
-                gioco->campo[r][c].tipo = MOSTRO;
-                gioco->campo[r][c].colore = ROSSO;
-                c++;
-                break;
-            case 'G':
-                gioco->campo[r][c].tipo = MOSTRO;
-                gioco->campo[r][c].colore = GIALLO;
-                c++;
-                break;
-            case 'B':
-                gioco->campo[r][c].tipo = MOSTRO;
-                gioco->campo[r][c].colore = BLU;
-                c++;
-                break;
-            case ' ':
-                gioco->campo[r][c].tipo = VUOTO;
-                c++;
-                break;
-            case '\n':
-                completa_riga(gioco, r, c);
-                r++;
-                c = 0;
-                break;
-            case EOF:
-                completa_campo(gioco, r, c);
-                break;
-            default:
-                fprintf(stderr, "Il file contiene un carattere invalido.\n");
-                exit(1);
-        }
-
-    } while (carattere != EOF);
-
-    fclose(fp);
-
-    riorganizza_mostri(gioco);
-
-    stampa_campo(gioco);
+  print_grid(game);
 }
 
 
 /**
- * @brief Inizializza un vettore assegnando ad ogni elemento un valore compreso tra 0 e 2.
- * @param vettore Un vettore di interi.
- * @param n Dimensione del vettore.
+ * @brief Initializes a vector assigning to each element a value between 0 and 2.
+ * @param vector A vector of integers.
+ * @param n The vector's dimension.
  */
-void inizializza_vettore(int *vettore, int n) {
-    for (int i = 0; i < n; i++) {
-        // Assegna un numero compreso tra 0 e 2 alla cella, che rappresenta il colore del mostro.
-        vettore[i] = (rand() % 3);
-    }
+void init_vector(int *vector, int n) {
+  for (int i = 0; i < n; i++) {
+    // Assigns a number included between 0 and 2 to the cell, who represent the virus color.
+    vector[i] = (rand() % 3);
+  }
 }
 
 
 /**
- * @brief Mescola un vettore.
- * @param vettore Un vettore di interi.
- * @param n Dimensione del vettore.
- * @details La funzione utilizza l'algoritmo Fisher–Yates shuffle.
+ * @brief Shuffle a vector.
+ * @param vector A vector of integers.
+ * @param n The vector's dimension.
+ * @details The function uses the Fisher–Yates shuffle.
  * @see https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle#The_modern_algorithm
  */
-void mescola_vettore(int *vettore, int n) {
-    int i, j, tmp;
+void shuffle_vector(int *vector, int n) {
+  int i, j, tmp;
 
-    for (i = n - 1; i > 0; i--) {
-        j = rand() % (i + 1);
-        tmp = vettore[j];
-        vettore[j] = vettore[i];
-        vettore[i] = tmp;
+  for (i = n - 1; i > 0; i--) {
+    j = rand() % (i + 1);
+    tmp = vector[j];
+    vector[j] = vector[i];
+    vector[i] = tmp;
+  }
+}
+
+
+/**
+ * @brief Assign the value `-1` to a number `r` of vector's elements randomly selected.
+ * @param vector A vector of integers.
+ * @param n Vector's dimension.
+ * @param r Number of elements to be removed.
+ */
+void prune_vector(int *vector, int n, int r) {
+  int k = 0;
+
+  while (k < r) {
+    int i = rand() % n;
+
+    if (vector[i] == -1)
+      continue;
+
+    vector[i] = -1; // -1 indicates that the virus wasn't removed from the vector.
+
+    k++;
+  }
+}
+
+
+/**
+ * @brief Assigns the viruses to the grid.
+ * @param game Pointer to the game instance.
+ * @param vector A vector of integers.
+ */
+void assign_viruses(struct game *game, const int *vector) {
+  int i, j;
+
+  // The first 5 cells of the grid must be empty because they cannot contain viruses.
+  for (i = 0; i < INVALIDE_ROWS; i++) {
+    for (j = 0; j < COLUMNS; j++)
+      game->grid[i][j].type = EMPTY;
+  }
+
+  // To the other cells, monsters will be assigned.
+  int k = 0;
+
+  for (i = INVALIDE_ROWS; i < ROWS; i++) {
+    for (j = 0; j < COLUMNS; j++) {
+
+      if (vector[k] != -1) {
+        game->grid[i][j].type = VIRUS;
+        game->grid[i][j].color = (enum color) vector[k];
+      }
+      else {
+        game->grid[i][j].type = EMPTY;
+      }
+
+      k++;
     }
-}
-
-
-/**
- * @brief Assegna il valore `-1` ad un numero `r` di elementi del vettore scelti casualmente.
- * @param vettore Un vettore di interi.
- * @param n Dimensione del vettore.
- * @param r Numero di elementi da rimuovere.
- */
-void sfronda_vettore(int *vettore, int n, int r) {
-    int k = 0;
-
-    while (k < r) {
-        int i = rand() % n;
-
-        if (vettore[i] == -1)
-            continue;
-
-        vettore[i] = -1; // -1 indica che il mostro non è stato rimosso dal vettore.
-
-        k++;
-    }
-}
-
-
-/**
- * @brief Assegna i mostri al campo di gioco.
- * @param gioco Puntatore all'istanza del gioco.
- * @param vettore Un vettore di interi.
- */
-void assegna_mostri(struct gioco *gioco, const int *vettore) {
-    int i, j;
-
-    // Le celle del prime 5 righe del campo sono vuote poiché non possono contenere mostri.
-    for (i = 0; i < RIGHE_NO_MOSTRI; i++) {
-        for (j = 0; j < COLONNE; j++)
-            gioco->campo[i][j].tipo = VUOTO;
-    }
-
-    // Alle altre celle del campo da gioco viene assegnato il mostri.
-    int k = 0;
-
-    for (i = RIGHE_NO_MOSTRI; i < RIGHE; i++) {
-        for (j = 0; j < COLONNE; j++) {
-
-            if (vettore[k] != -1) {
-                gioco->campo[i][j].tipo = MOSTRO;
-                gioco->campo[i][j].colore = (enum colore) vettore[k];
-            }
-            else {
-                gioco->campo[i][j].tipo = VUOTO;
-            }
-
-            k++;
-        }
-    }
-}
-
-
-/**
- * @brief Inizializza il campo da gioco posizionando i mostri a partire dalla sesta riga.
- * @details I mostri vengono distribuiti sul campo usando la seguente strategia:\n
- *   - crea un vettore con un numero di elementi pari alle celle della matrice del campo utilizzabili per l'assegnazione
- *   dei mostri, dunque escluse le prime cinque righe della stessa;\n
- *   - inizializza il vettore assegnando ad ogni elemento un valore compreso tra 0 e 2, il quale rappresenta il tipo di
- *   mostri;\n
- *   - mescola il vettore utilizzando l'algoritmo Fisher-Yates shuffle;\n
- *   - "rimuove" dal vettore i mostri in surplus, scengliendo casualmente a quali degli elementi assegnare il valore -1.\n
- *   - verifica che non siano presenti due mostri adiacenti sulla stessa fila.\n
- * L'algoritmo si assicura inoltre che non siano presenti due mostri dello stesso tipo adiacenti, ovverosia due mostri
- * identificati dallo stesso colore, uno dietro l'altro.
- * @param gioco Puntatore all'istanza del gioco.
- * @param difficolta Livello di difficoltà scelto per il gioco. Varia tra 0 e 15.
- * @note L'algoritmo assume che non possano esservi piu di due mostri consecutivi, del medesimo tipo, sulla stessa riga
- * o colonna. Le specifiche in merito sono poche chiare, visto che si parla di fila. Dalle immagine ho desunto che la
- * verifica vada fatta sia sulla riga che sulla colonna.
- */
-void riempi_campo(struct gioco *gioco, int difficolta) {
-    // Verifica che il livello di difficoltà sia compreso tra 0 e 15. Se non lo è ritorna un errore.
-	assert(difficolta >= 0 && difficolta <= 15);
-
-	// Numero di celle disponibili nel campo da gioco. Le prime 5 righe infatti non vanno usate.
-	const int num_celle = (RIGHE * COLONNE) - (RIGHE_NO_MOSTRI * COLONNE);
-
-	// Numero di mostri da rimuovere, che è dato dalla differenza tra il numero totale di celle ed il numero
-	// di mostri calcolato in base alla difficoltà scelta.
-	const int num_mostri = num_celle - (4 * (difficolta + 1));
-
-	// Dichiara il vettore che contiene le sole celle disponibili del campo da gioco. Questo vettore verrà usato per
-	// l'assegnazione dei mostri al campo di gioco.
-	int celle[num_celle];
-
-    inizializza_vettore(celle, num_celle);
-    sfronda_vettore(celle, num_celle, num_mostri);
-    mescola_vettore(celle, num_celle);
-
-    assegna_mostri(gioco, celle);
-    stampa_campo(gioco);
-    riorganizza_mostri(gioco);
-    stampa_campo(gioco);
-}
-
-
-/**
- * @brief Scambia il colore dei due pezzi che compongono la pastiglia.
- * @param pastiglia Una pastiglia.
- */
-void scambia_colore(struct pastiglia *pastiglia) {
-    enum colore tmp = pastiglia->pezzo1.colore;
-    pastiglia->pezzo1.colore = pastiglia->pezzo2.colore;
-    pastiglia->pezzo2.colore = tmp;
-}
-
-
-/**
- * @brief Rielabora il campo di gioco.
- * @details A seguito di ogni mossa valida il campo va aggiornato, poiché la ricollocazione di una pastiglia può aver
- * determinato l'eliminazione di un mostro e d'altri pezzi di pastiglie.
- * @param gioco Puntatore all'istanza del gioco.
- */
-void rielabora_campo(struct gioco *gioco) {
+  }
 
 }
 
 
 /**
- * @brief Cambia il contenuto dei pezzi che costituiscono la pastiglia attiva.
- * @param gioco Puntatore all'istanza del gioco.
+ * @brief Fills the grid with the viruses.
+ * @details The viruses are distrubuted ont he grid using the following strategy:\n
+ *   - creates a vector with a number of elements equal to the available cells of the matrix, excluding so the first
+ *   5 rows of the grid;\n
+ *   - initializes the vector assigning to every element a value included between 0 and 2, which represents the virus type;\n
+ *   - shuffle the vector using the Fisher-Yates shuffle algorithm;\n
+ *   - "removes" from the vector the viruses in surplus choosing randomly to which elements assign the value -1.\n
+ *   - verifies there aren't two consecutive viruses on the same line.
+ * @param game Pointer to the game instance.
+ * @param difficulty Level of difficulty chosen for the game, between 0 and 15.
+ * @note The algorithm assumes you cannot have more then two consecutive viruses, of the same type, on the same row or
+ * column. The specifications are not very clear on this point, since there is a mention to the word "line". From the
+ * images I have inferred the verification is done on both row and column.
  */
-void cambia_tipo(struct gioco *gioco, enum contenuto tipo) {
-    struct pastiglia *p = &gioco->pastiglia;
+void fill_grid(struct game *game, int difficulty) {
+  // Verifies that the level of difficulty is between 0 e 15. If not it returns an error.
+  assert(difficulty >= 0 && difficulty <= 15);
 
-    if (!p->attiva)
-        return;
+  // Number of available cells. The first five rows of cells cannot be used.
+  const int cell_count = (ROWS * COLUMNS) - (INVALIDE_ROWS * COLUMNS);
 
-    gioco->campo[p->pezzo1.riga][p->pezzo1.colonna].tipo = tipo;
-    gioco->campo[p->pezzo2.riga][p->pezzo2.colonna].tipo = tipo;
-};
+  // Number of viruses based on the difficulty and the cells count.
+  const int virus_count = cell_count - (4 * (difficulty + 1));
 
+  // Declares a vector witht only the cells available on the grid, to be used later to assign the viruses.
+  int cells[cell_count];
 
-/**
- * @brief Rimuove la pastiglia corrente dal campo.
- * @param gioco Puntatore all'istanza del gioco.
- */
-void rimuovi_pastiglia(struct gioco *gioco) {
-    cambia_tipo(gioco, VUOTO);
+  init_vector(cells, cell_count);
+  prune_vector(cells, cell_count, virus_count);
+  shuffle_vector(cells, cell_count);
+
+  assign_viruses(game, cells);
+  print_grid(game);
+  reorganize_viruses(game);
+  print_grid(game);
 }
 
 
 /**
- * @brief Ripristina la pastiglia corrente sul campo.
- * @param gioco Puntatore all'istanza del gioco.
+ * @brief Swap the color of the two halves of a pill.
+ * @param pill A pill.
  */
-void ripristina_pastiglia(struct gioco *gioco) {
-    cambia_tipo(gioco, PASTIGLIA);
+void swap_color(struct pill *pill) {
+  enum color tmp = pill->first_half.color;
+  pill->first_half.color = pill->second_half.color;
+  pill->second_half.color = tmp;
 }
 
 
 /**
- * @brief Aggiorna il campo da gioco, riposizionando i due pezzi che compongono la posizione della
- * pastiglia sul campo di gioco.
- * @param gioco Puntatore all'istanza del gioco.
+ * @brief Marks a group of four or more cells of a line (row or column) having the same color.
+ * @details The marked cells can be emptied, all together, in a following step.
+ * @param game Pointer to the game instance.
+ * @param direction Direction of the line,
+ * @param x X-axis coordinate.
+ * @param y Y-axis coordinate.
+ * @param repetitions Number of repetitions.
  */
-void aggiorna_campo(struct gioco *gioco) {
-    if (!gioco->aggiorna_campo)
-        return;
+void mark_cells(struct game *game, enum direction direction, int x, int y, int repetitions) {
 
-    gioco->aggiorna_campo = false;
-
-    struct pastiglia *pastiglia = &gioco->pastiglia;
-    struct pastiglia *temp = &gioco->pastiglia_temp;
-
-    // Vecchie coordinate dei pezzi di pastiglia.
-    int or1 = pastiglia->pezzo1.riga;
-    int oc1 = pastiglia->pezzo1.colonna;
-    int or2 = pastiglia->pezzo2.riga;
-    int oc2 = pastiglia->pezzo2.colonna;
-
-    // Nuove coordinate dei pezzi di pastiglia.
-    int r1 = temp->pezzo1.riga;
-    int c1 = temp->pezzo1.colonna;
-    int r2 = temp->pezzo2.riga;
-    int c2 = temp->pezzo2.colonna;
-
-    // Rimuove temporaneamente la pastiglia, così quando verifica il campo non vi sono interferenze.
-    rimuovi_pastiglia(gioco);
-
-    // Se la pastiglia è fuori campo significa che la mossa è invalida, dunque il controllo ritorna alla funzione
-    // chiamante.
-    if (r1 > RIGHE-1 || c1 > COLONNE-1 || r2 > RIGHE-1 || c2 > COLONNE-1 || c1 < 0 || c2 < 0) {
-        ripristina_pastiglia(gioco);
-        return;
-    }
-
-    // La mossa è invalida quando anche solo un pezzo della pastiglia occupa una cella che non è vuota.
-    // (r1, c1) e (r2, c2) sono le coordinate delle celle che la pastiglia dovrebbe andare ad occupare.
-    // Il controllo `r2 >= 0` serve ad evitare che il programma termini nel qual caso la pastiglia sia in verticale
-    // e sfori dalla griglia. `r2` infatti potrebbe essere uguale a `-1`.
-    // fuori dalla griglia.
-    if ((gioco->campo[r1][c1].tipo != VUOTO) || (r2 >= 0 && gioco->campo[r2][c2].tipo != VUOTO)) {
-
-        // In questo caso viene fatto un ulteriore controllo per verificare che la pastiglia si trovi proprio nel
-        // mezzo della prima riga. Se così, in virtù del fatto che le celle sono già occupate, la partita è persa,
-        // pertanto lo stato del gioco viene modificato.
-        if (r1 == 0 && c1 == (COLONNE / 2) - 1) {
-            gioco->stato = SCONFITTA;
-        }
-
-        pastiglia->attiva = false;
-        ripristina_pastiglia(gioco);
-
-        return;
-    }
-
-
-    // RICOLLOCA EFFETTIVAMENTE LA PASTIGLIA
-
-    // Elimina i pezzi di pastiglia dal campo, poiché la pastiglia ha cambiato posizione.
-    gioco->campo[or1][oc1].tipo = VUOTO;
-    gioco->campo[or2][oc2].tipo = VUOTO;
-
-    // Inserisce il primo pezzo di pastiglia nella sua nuova posizione sul campo di gioco.
-    gioco->campo[r1][c1].tipo = PASTIGLIA;
-    //gioco->campo[r1][c1].tipo = VUOTO;
-    gioco->campo[r1][c1].colore = temp->pezzo1.colore;
-
-    // Se il secondo pezzo della pastiglia non è fuori campo allora inserisce anche il secondo pezzo sul campo.
-    if (r2 >= 0) {
-        gioco->campo[r2][c2].tipo = PASTIGLIA;
-        //gioco->campo[r2][c2].tipo = VUOTO;
-        gioco->campo[r2][c2].colore = temp->pezzo2.colore;
-    }
-
-
-    // Una pastiglia viene disattivata quando arriva a fine corsa, dunque nei seguenti casi:
-    //   - si trova sul fondo, ovverosia sull'ultima riga del campo di gioco;
-    //   - sotto al primo pezzo della pastiglia non c'è una cella vuota, bensì un mostro o un altro pezzo di pastiglia;
-    //   - quando l'orientamento della pastiglia è orizzontale e sotto al secondo pezzo della medesima non c'è una
-    //     cella vuota.
-    if (r1 == RIGHE - 1 ||
-            (gioco->campo[r1+1][c1].tipo != VUOTO) ||
-            (temp->orientamento == ORIZZONTALE && gioco->campo[r2+1][c2].tipo != VUOTO)) {
-        temp->attiva = false;
-    }
-
-    // Assegna alla pastiglia del gioco la copia modificata.
-    memcpy(pastiglia, temp, sizeof(struct pastiglia));
-
-    gioco->stato = IN_CORSO;
-
-    if (!pastiglia->attiva)
-        rielabora_campo(gioco);
-}
-
-
-/**
- * @brief Ruota la pastiglia in senso orario o antiorario.
- * @details La rotazione avviene sempre mantenendo l'ascissa costante, tranne nel caso in cui
- * @param gioco Puntatore all'istanza del gioco.
- * @param senso_rotazione Senso di rotazione.
- */
-void ruota_pastiglia(struct gioco *gioco, enum senso senso_rotazione) {
-    if (!gioco->pastiglia.attiva) {
-        gioco->aggiorna_campo = false;
-        return;
-    }
-
-    // Memorizza la pastiglia corrente in una variabile temporanea.
-    struct pastiglia temp = gioco->pastiglia;
-
-    switch (gioco->pastiglia.orientamento) {
-        case ORIZZONTALE:
-            // Il primo pezzo della pastiglia rimane al suo posto mentre il secondo pezzo viene
-            // spostato nella riga sopra il primo pezzo.
-            temp.pezzo2.riga--;
-            temp.pezzo2.colonna--;
-
-            if (senso_rotazione == ORARIO)
-                scambia_colore(&temp);
-
-            temp.orientamento = VERTICALE;
-
-            break;
-        case VERTICALE:
-            temp.pezzo2.riga++;
-            temp.pezzo2.colonna++;
-
-            // Se il secondo pezzo di pastiglia finisce in una cella che non è vuota, allora shifta a sinistra
-            // l'intera pastiglia di una colonna.
-            if (gioco->campo[temp.pezzo2.riga][temp.pezzo2.colonna].tipo != VUOTO) {
-                temp.pezzo1.colonna--;
-                temp.pezzo2.colonna--;
-            }
-
-            if (senso_rotazione == ANTIORARIO)
-                scambia_colore(&temp);
-
-            temp.orientamento = ORIZZONTALE;
-
-            break;
-    }
-
-    gioco->pastiglia_temp = temp;
-    gioco->aggiorna_campo = true;
-}
-
-
-/**
- * @brief Sposta la pastiglia.
- * @details Il giocatore può muovere la pastiglia a destra e sinistra, oppure farla scendere di una posizione o ancora
- * farla cadere verso il basso sino a che non incontra un'altra pastiglia, un virus o il fondo del campo di gioco.
- * @param gioco Puntatore all'istanza del gioco.
- * @param direzione La direzione in cui la pastiglia dovrebbe spostarsi.
- */
-void sposta_pastiglia(struct gioco *gioco, enum mossa direzione) {
-    if (!gioco->pastiglia.attiva) {
-        gioco->aggiorna_campo = false;
-        return;
-    }
-
-    // Memorizza la pastiglia corrente in una variabile temporanea.
-    struct pastiglia temp = gioco->pastiglia;
-
-    switch (direzione) {
-        case DESTRA:
-            temp.pezzo1.colonna++;
-            temp.pezzo2.colonna++;
-            break;
-        case SINISTRA:
-            temp.pezzo1.colonna--;
-            temp.pezzo2.colonna--;
-            break;
-        case GIU: {
-                int i = temp.pezzo1.riga + 1;
-
-                while (i < RIGHE) {
-                    // Se il posto della pastiglia non è vuoto, allora si ferma.
-                    if (gioco->campo[i][temp.pezzo1.colonna].tipo != VUOTO && gioco->campo[i][temp.pezzo2.colonna].tipo != VUOTO)
-                        break;
-
-                    i++;
-                }
-
-                // Sposta verso il basso le pastiglie.
-                temp.pezzo1.riga = i - 1;
-
-                if (temp.orientamento == ORIZZONTALE)
-                    temp.pezzo2.riga = i - 1;
-                else
-                    temp.pezzo2.riga = i - 2;
-            }
-            break;
-        case NONE:
-            temp.pezzo1.riga++;
-            temp.pezzo2.riga++;
-            break;
-        default:
-            return;
-    }
-
-    gioco->pastiglia_temp = temp;
-    gioco->aggiorna_campo = true;
-}
-
-
-/**
- * @brief Crea una nuova pastiglia.
- * @details L'orientamento di ogni nuova pastiglia è sempre orizzontale.
- * @param gioco Puntatore all'istanza del gioco.
- */
-void crea_pastiglia(struct gioco *gioco) {
-    gioco->pastiglia.orientamento = ORIZZONTALE;
-
-    // L'ascissa è `-1` poiché la pastiglia viene immediatamente spostata nella prima riga del campo.
-    gioco->pastiglia.pezzo1.riga = -1;
-    gioco->pastiglia.pezzo2.riga = -1;
-
-    gioco->pastiglia.pezzo1.colonna = (COLONNE / 2) - 1;
-    gioco->pastiglia.pezzo2.colonna = gioco->pastiglia.pezzo1.colonna + 1;
-
-    gioco->pastiglia.pezzo1.colore = (enum colore) genera_nuovo_colore();
-    gioco->pastiglia.pezzo2.colore = (enum colore) genera_nuovo_colore();
-
-    gioco->pastiglia.attiva = true;
-}
-
-
-/**
- * @brief Implementa la logica del videogioco.
- * @details Il giocatore può muovere la pastiglia a destra e sinistra, ruotarla in senso orario e antiorario, farla
- * cadere verso il basso, oppure non fare nulla, nel qual caso il programma farà scendere verso il basso la pastiglia
- * attiva di una posizione. Se non vi è nessuna pastiglia attiva la funzione ne crea una e la posiziona a metà della
- * prima riga.
- * @param gioco Puntatore all'istanza del gioco.
- * @param comando Comando impartito dal giocatore.
- */
-void step(struct gioco *gioco, enum mossa comando) {
-
-    switch (comando) {
-        case DESTRA:
-            sposta_pastiglia(gioco, DESTRA);
-            break;
-
-        case SINISTRA:
-            sposta_pastiglia(gioco, SINISTRA);
-            break;
-
-        case GIU:
-            sposta_pastiglia(gioco, GIU);
-            break;
-
-        case ROT_DX:
-            ruota_pastiglia(gioco, ORARIO);
-            break;
-
-        case ROT_SX:
-            ruota_pastiglia(gioco, ANTIORARIO);
-            break;
-
-        case NONE:
-            if (!gioco->pastiglia.attiva)
-                crea_pastiglia(gioco);
-            else
-                sposta_pastiglia(gioco, NONE);
-            break;
-
-        default:
-            break;
-    }
+  for (int k = repetitions; k > 0; k--) {
+    if (direction == HORIZONTAL)
+      game->grid[x,y]->to_be_emptied = true;
+    else
+      game->grid[y,x]->to_be_emptied = true;
+  }
 
 }
 
 
 /**
- * @brief Ritorna lo stato del gioco.
- * @return stato
- * @param gioco Puntatore all'istanza del gioco.
+ * @brief Empty the marked cells.
+ * @param game Pointer to the game instance.
  */
-enum stato vittoria(struct gioco *gioco) {
-	return gioco->stato;
+void empty_cells(struct game *game) {
+  for (int x = 0; x < ROWS; x++) {
+    for (int y = 0; y < COLUMNS; y++) {
+      if (game->grid[x, y]->to_be_emptied) {
+        game->grid[x, y]->type = EMPTY;
+      }
+    }
+  }
+}
+
+
+/**
+ * @brief Process a single line of the grid, (row or column), so that monsters or pills' halves can be eliminated.
+ * @param game Pointer to the game instance.
+ * @param direction Horizontal for x-axis or vertical for y-axis.
+ * @param index Index of the line (row o column) to be processed.
+ */
+void process_line(struct game *game, enum direction direction, int index) {
+  int i = 0;
+  int j = index;
+
+  int limit;
+  int repetitions = 1;
+
+  if (direction == HORIZONTAL)
+    limit = COLUMNS - 1;
+  else
+    limit = ROWS - 1;
+
+  for (j; j < limit; j++) {
+    struct cell *current_cell;
+    struct cell *next_cell;
+
+    // Determine the current cell and the next one in function of the direction.
+    if (direction == HORIZONTAL) {
+      current_cell = game->grid[i,j];
+      next_cell = game->grid[i, j + 1];
+    }
+    else {
+      current_cell = game->grid[j,i];
+      next_cell = game->grid[j + 1,i];
+    }
+
+    if (current_cell->color == next_cell->color &&
+        (current_cell->type == PILL || current_cell->type == VIRUS) &&
+        (next_cell->type == PILL || next_cell->type == VIRUS)) {
+
+      // Increment the number of repetitions.
+      repetitions++;
+
+      if (i == (limit - 1))
+        mark_cells(game, direction, i, j, repetitions);
+    }
+    else {
+      if (repetitions >= 4)
+        mark_cells(game, direction, i, j, repetitions);
+
+      repetitions = 1;
+    }
+  }
+
+  empty_cells(game);
+}
+
+
+/**
+ * @brief Process the entire grid as consequence of a new command.
+ * @param game Pointer to the game instance.
+ */
+void process_grid(struct game *game) {
+  for (int i = 0; i < COLUMNS; i++)
+    process_line(game, HORIZONTAL, i);
+
+  for (int i = 0; i < ROWS; i++)
+    process_line(game, VERTICAL, i);
+}
+
+
+/**
+ * @brief Updates the content of the grid cells where the two halves that constitute the active pill are located.
+ * @param game Pointer to the game instance.
+ */
+void update_content(struct game *game, enum content type) {
+  struct pill *p = &game->pill;
+
+  if (!p->active)
+    return;
+
+  game->grid[p->first_half.row][p->first_half.column].type = type;
+  game->grid[p->second_half.row][p->second_half.column].type = type;
+}
+
+
+/**
+ * @brief Removes the current pill from the grid.
+ * @param game Pointer to the game instance.
+ */
+void remove_pill(struct game *game) {
+  update_content(game, EMPTY);
+}
+
+
+/**
+ * @brief Restores the current pill on the grid.
+ * @param game Pointer to the game instance.
+ */
+void restore_pill(struct game *game) {
+  update_content(game, PILL);
+}
+
+
+/**
+ * @brief Refreshes the grid, repositioning the two halves of the pill on the grid.
+ * @param game Pointer to the game instance.
+ */
+void refresh_grid(struct game *game) {
+  if (!game->refresh_grid)
+    return;
+
+  game->refresh_grid = false;
+
+  struct pill *pill = &game->pill;
+  struct pill *temp = &game->tmp_pill;
+
+  // Old coordinates of the pill's halves.
+  int or1 = pill->first_half.row;
+  int oc1 = pill->first_half.column;
+  int or2 = pill->second_half.row;
+  int oc2 = pill->second_half.column;
+
+  // New coordinates of the pill's halves.
+  int r1 = temp->first_half.row;
+  int c1 = temp->first_half.column;
+  int r2 = temp->second_half.row;
+  int c2 = temp->second_half.column;
+
+  // Temporarily removes the pill, so, when the grid is verified, there aren't interferences.
+  remove_pill(game);
+
+  // If the pill is outside the grid perimeter, then the command is invalid, therefore the control returns to the caller
+  // function.
+  if (r1 > ROWS - 1 || c1 > COLUMNS - 1 || r2 > ROWS - 1 || c2 > COLUMNS - 1 || c1 < 0 || c2 < 0) {
+    restore_pill(game);
+    return;
+  }
+
+  // The command is invalid even if only one half of the pill occupies a cell that is not empty.
+  // (r1, c1) e (r2, c2) are the coordinates of the cells that the pills should occupy.
+  // The check `r2 >= 0` is there to avoid that the program terminates, in which case the pill is vertical oriented and
+  // exceeds the grid. `r2`, in fact, could be equal to `-1`, which is outside the grid perimeter.
+  if ((game->grid[r1][c1].type != EMPTY) || (r2 >= 0 && game->grid[r2][c2].type != EMPTY)) {
+
+    // In such a case a further check has to be done to be sure the pill is exactly in the middle of the first row. If
+    // so, in virtue of the fact the cells are already taken, the game is over, therefore the state of the game doesn't
+    // change.
+    if (r1 == 0 && c1 == (COLUMNS / 2) - 1) {
+      game->status = DEFEAT;
+    }
+
+    restore_pill(game);
+    return;
+  }
+
+  // REPOSITION THE PILL
+
+  // Inserts the first half of the pill on the grid.
+  game->grid[r1][c1].type = PILL;
+  game->grid[r1][c1].color = temp->first_half.color;
+
+  // Proceeds with the second half if inside the grid.
+  if (r2 >= 0) {
+    game->grid[r2][c2].type = PILL;
+    game->grid[r2][c2].color = temp->second_half.color;
+  }
+
+  // A pill gets disactivated when reaches the end of stroke, therefore in the following cases:
+  //   - it's at the bottom, namely the last row of the grid;
+  //   - below the first half there is not an empty cell, but a monster or a pill;
+  //   - when the pill is horizontal and below the second half there is not an empty cell.
+  if (r1 == ROWS - 1 ||
+      (game->grid[r1 + 1][c1].type != EMPTY) ||
+      (temp->orientation == HORIZONTAL && game->grid[r2 + 1][c2].type != EMPTY)) {
+    temp->active = false;
+  }
+
+  // Assigns to the active pill, the copy.
+  memcpy(pill, temp, sizeof(struct pill));
+
+  game->status = RUNNING;
+
+  //if (!pill->active)
+  //process_grid(game);
+}
+
+
+/**
+ * @brief Rotates the pill clockwise or anti-clockwise.
+ * @details The direction occurs maintaining the x-axis constant, when possible.
+ * @param game Pointer to the game instance.
+ * @param direction The direction of rotation. A pill can rotate clockwise or anti-clockwise.
+ */
+void rotate_pill(struct game *game, enum rotation direction) {
+  if (!game->pill.active) {
+    game->refresh_grid = false;
+    return;
+  }
+
+  // Assigns the pill to a temporary variable.
+  struct pill temp = game->pill;
+
+  switch (game->pill.orientation) {
+    case HORIZONTAL:
+      // The first half of the pill remains meanwhile the second half is moved in the row above the first half.
+      temp.second_half.row--;
+      temp.second_half.column--;
+
+      if (direction == CLOCKWISE)
+        swap_color(&temp);
+
+      temp.orientation = VERTICAL;
+
+      break;
+    case VERTICAL:
+      temp.second_half.row++;
+      temp.second_half.column++;
+
+      // If the second half of the pill ends on an occupied cell, then shift to the left the entire pill.
+      if (temp.second_half.column == COLUMNS || game->grid[temp.second_half.row][temp.second_half.column].type != EMPTY) {
+        temp.first_half.column--;
+        temp.second_half.column--;
+      }
+
+      if (direction == ANTICLOCKWISE)
+        swap_color(&temp);
+
+      temp.orientation = HORIZONTAL;
+
+      break;
+  }
+
+  game->tmp_pill = temp;
+  game->refresh_grid = true;
+}
+
+
+/**
+ * @brief Moves the pill.
+ * @details The player can move the pill to left of the right, or make it fall towards the bottom over another pill, a
+ * virus or the bottom of the grid.
+ * @param game Pointer to the game instance.
+ * @param direction Direction of the pill.
+ */
+void move_pill(struct game *game, enum command direction) {
+  if (!game->pill.active) {
+    game->refresh_grid = false;
+    return;
+  }
+
+  // Use a temporary variable to store the pill.
+  struct pill temp = game->pill;
+
+  switch (direction) {
+
+    case RIGHT:
+      temp.first_half.column++;
+      temp.second_half.column++;
+      break;
+
+    case LEFT:
+      temp.first_half.column--;
+      temp.second_half.column--;
+      break;
+
+    case DOWN: {
+      int i = temp.first_half.row + 1;
+
+      while (i < ROWS) {
+        // If there is no place for the pill then it stops.
+        if (game->grid[i][temp.first_half.column].type != EMPTY || game->grid[i][temp.second_half.column].type != EMPTY)
+          break;
+
+        i++;
+      }
+
+      // Move the pill down.
+      temp.first_half.row = i - 1;
+
+      if (temp.orientation == HORIZONTAL)
+        temp.second_half.row = i - 1;
+      else
+        temp.second_half.row = i - 2;
+    }
+      break;
+
+    case NONE:
+      temp.first_half.row++;
+      temp.second_half.row++;
+      break;
+
+    default:
+      return;
+  }
+
+  game->tmp_pill = temp;
+  game->refresh_grid = true;
+}
+
+
+/**
+ * @brief Creates a new pill.
+ * @details The orientation of a new pill is always horizontal.
+ * @param game Pointer to the game instance.
+ */
+void create_pill(struct game *game) {
+  game->pill.orientation = HORIZONTAL;
+
+  // The x-axis is `-1` because the pill is positioned in the first valid raw of the grid.
+  game->pill.first_half.row = -1;
+  game->pill.second_half.row = -1;
+
+  // The pill is positioned at the middle of the grid y-axis.
+  game->pill.first_half.column = (COLUMNS / 2) - 1;
+  game->pill.second_half.column = game->pill.first_half.column + 1;
+
+  // A random color is assigned to the pill.
+  game->pill.first_half.color = (enum color) get_random_color();
+  game->pill.second_half.color = (enum color) get_random_color();
+
+  game->pill.active = true;
+}
+
+
+/**
+ * @brief Executes a command.
+ * @details A player can move the pill to the left or right, rotate it clockwise or anti-clockwise, drop it towards the
+ * bottom of the grid. In case there is no input, the program will drop the pill on one position at the time. If there
+ * is not an active pill, one will be created and positioned in the middle of the first valid row.
+ * @param game Pointer to the game instance.
+ * @param command Command given by the player.
+ */
+void execute(struct game *game, enum command command) {
+
+  switch (command) {
+    case RIGHT:
+      move_pill(game, RIGHT);
+      break;
+
+    case LEFT:
+      move_pill(game, LEFT);
+      break;
+
+    case DOWN:
+      move_pill(game, DOWN);
+      break;
+
+    case CLOCKWISE_ROTATION:
+      rotate_pill(game, CLOCKWISE);
+      break;
+
+    case ANTICLOCKWISE_ROTATION:
+      rotate_pill(game, ANTICLOCKWISE);
+      break;
+
+    case NONE:
+      if (!game->pill.active)
+        create_pill(game);
+      else
+        move_pill(game, NONE);
+      break;
+
+    default:
+      break;
+  }
+
+  refresh_grid(game);
+}
+
+
+/**
+ * @brief Returns the game state.
+ * @return state
+ * @param game Pointer to the game instance.
+ */
+enum state victory(struct game *game) {
+  return game->status;
 }

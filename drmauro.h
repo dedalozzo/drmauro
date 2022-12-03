@@ -1,53 +1,54 @@
 #ifndef DRMAURO_H
 #define DRMAURO_H
 
-#define RIGHE 16
-#define COLONNE 8
-#define RIGHE_NO_MOSTRI 5
+#define ROWS 32
+#define COLUMNS 16
+#define INVALIDE_ROWS 5
 
 #include <stdbool.h>
 
-enum contenuto { VUOTO, MOSTRO, PASTIGLIA };
-enum colore { ROSSO, GIALLO, BLU, NUMERO_COLORI };
-enum mossa { NONE, DESTRA, SINISTRA, GIU, ROT_DX, ROT_SX };
-enum stato { IN_CORSO, VITTORIA, SCONFITTA };
-enum senso { ORARIO, ANTIORARIO };
-enum orientamento { ORIZZONTALE, VERTICALE };
+enum content { EMPTY, VIRUS, PILL };
+enum color { RED, YELLOW, BLUE, COLORS_COUNT };
+enum command { NONE, RIGHT, LEFT, DOWN, CLOCKWISE_ROTATION, ANTICLOCKWISE_ROTATION };
+enum state { RUNNING, VICTORY, DEFEAT };
+enum rotation { CLOCKWISE, ANTICLOCKWISE };
+enum direction { HORIZONTAL, VERTICAL };
 
 
-struct pezzo {
-    int riga;
-    int colonna;
-    enum colore colore;
+struct halve {
+    int row;
+    int column;
+    enum color color;
 };
 
-struct pastiglia {
-    enum orientamento orientamento;
-    struct pezzo pezzo1;
-    struct pezzo pezzo2;
-    bool attiva;
+struct pill {
+    enum direction orientation;
+    struct halve first_half;
+    struct halve second_half;
+    bool active;
 };
 
-struct cella {
-  enum contenuto tipo;
-  enum colore colore;
+struct cell {
+  enum content type;
+  enum color color;
+  bool to_be_emptied;
 };
 
-struct gioco {
-  struct cella campo[RIGHE][COLONNE];
-  struct pastiglia pastiglia;
-  struct pastiglia pastiglia_temp;
-  enum stato stato;
-  bool aggiorna_campo;
-  int punti;
+struct game {
+  struct cell grid[ROWS][COLUMNS];
+  struct pill pill;
+  struct pill tmp_pill;
+  enum state status;
+  bool refresh_grid;
+  int score;
 };
 
 
-void stampa_campo(struct gioco *gioco);
-void carica_campo(struct gioco *gioco, char *percorso);
-void riempi_campo(struct gioco *gioco, int difficolta);
-void aggiorna_campo(struct gioco *gioco);
-void step(struct gioco *gioco, enum mossa comando);
-enum stato vittoria(struct gioco *gioco);
+void print_grid(struct game *game);
+void load_grid(struct game *game, char *path);
+void fill_grid(struct game *game, int difficulty);
+void refresh_grid(struct game *game);
+void execute(struct game *game, enum command command);
+enum state victory(struct game *game);
 
 #endif
