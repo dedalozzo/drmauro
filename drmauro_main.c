@@ -25,11 +25,8 @@
 #include "drmauro.h"
 
 #define TITLE "DR. MAURO"
-//#define WIDTH 480
-//#define HEIGHT 320
-#define WIDTH 600
-#define HEIGHT 640
-
+#define WIDTH 480
+#define HEIGHT 320
 
 #define BOARD_W (COLUMNS * (CELL_SIZE +2))
 #define BOARD_H (ROWS * (CELL_SIZE +2))
@@ -157,11 +154,11 @@ void draw_board(SDL_Surface *screen,  struct game *game_state) {
   int i, j;
   for (i=0; i < ROWS; i++)
     for (j=0; j < COLUMNS; j++) {
-      struct cell *cella = &game_state->grid[i][j];
-      switch (cella->type) {
+      struct cell *cell = &game_state->grid[i][j];
+      switch (cell->type) {
       case VIRUS:
       case PILL:
-        sprite_draw(((cella->type == VIRUS) ? enemies : pills)[cella->color],
+        sprite_draw(((cell->type == VIRUS) ? enemies : pills)[cell->color],
                     screen, BOARD_X + j*16, BOARD_Y + i*16);
         break;
       default: /* do nothing */ break;
@@ -200,10 +197,10 @@ int main(int argc, char **argv) {
   int prev_time;
   double acc_time;
 
-  struct game *game_state;
+  struct game *game;
   char *board_file = NULL;
   int difficulty = 5;
-  double speed = 0.3;
+  double speed = 0.4;
 
   extern char *optarg;
   extern int optind;
@@ -224,8 +221,14 @@ int main(int argc, char **argv) {
 
 
   /* Initialize the game */
-  game_state = calloc(1,sizeof(struct game));
-  if (!game_state) ERROR(("malloc error"));
+  game = calloc(1, sizeof(struct game));
+  game->pills_count = 0;
+  game->virus_count = 0;
+  game->score = 0;
+  game->points_multiplier = 1;
+  game->moving_pill = game->pill;
+
+  if (!game) ERROR(("malloc error"));
 
   /* Initialize SDL */
   if (SDL_Init(SDL_INIT_VIDEO) <0) ERROR(("SDL_INIT failed!"));
@@ -238,10 +241,13 @@ int main(int argc, char **argv) {
   /* Load Sprites and images */
   load_spites();
 
+  init_grid(game);
+
   if (board_file)
-    load_grid(game_state, board_file);
+    // Use `-f /Users/fff/Documents/Git/dr_mauro/campo2.txt` as program argument, or another file.
+    load_grid(game, board_file);
   else
-    fill_grid(game_state, difficulty);
+    fill_grid(game, difficulty);
 
   prev_time = SDL_GetTicks();
   acc_time = 0;
@@ -275,23 +281,22 @@ int main(int argc, char **argv) {
     /* Execute commands every speed seconds */
     if (acc_time > speed) {
       /* Check Victory */
-      switch(victory(game_state)) {
+      switch(victory(game)) {
+        case DEFEAT:
+          running = 0;
+          printf("Game Over. \nScore: %d\n", game->score);
+          break;
 
-      case DEFEAT:
-        running = 0;
-        printf("Game Over. \nScore: %d\n", game_state->score);
-        break;
+        case VICTORY:
+          running = 0;
+          printf("You won! \nScore: %d\n", game->score);
+          break;
 
-      case VICTORY:
-        running = 0;
-        printf("You won! \nScore: %d\n", game_state->score);
-        break;
-
-      default:
-        break;
+        default:
+          break;
       }
       /* Update State */
-      execute(game_state, command);
+      execute(game, command);
 
       /* Reset Commands */
       command = NONE;
@@ -299,15 +304,15 @@ int main(int argc, char **argv) {
     }
 
     /* Draw the game state */
-    draw_background(screen, game_state);
-    draw_board(screen, game_state);
+    draw_background(screen, game);
+    draw_board(screen, game);
 
     SDL_UpdateWindowSurface(window);
     SDL_Delay(1);
   }
 
   free_sprites();
-  free(game_state);
+  free(game);
 
   SDL_DestroyWindow(window);
   SDL_Quit();
