@@ -56,3 +56,10 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+/cmake-build-debug-event-trace/
+/.cmake/api/v1/query/
+/.fleet/
+/dr_mauro
+/dr_mauro.cbp
+/drmauro
+/cmake_install.cmake
