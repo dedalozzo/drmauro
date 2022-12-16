@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdbool.h>
+#include <ctype.h>
 
 #include "drmauro.h"
 
@@ -15,7 +16,7 @@
  * @return int
  */
 int get_random_color() {
-  return rand() % COLORS_COUNT;
+  return rand() % BLANK;
 }
 
 
@@ -38,7 +39,7 @@ void change_virus_color(struct game *game, int x, int y) {
 
 
 /**
- * @brief Reorganizes the viruses to avoid the presence of two of more consecutive viruss of the same color on the
+ * @brief Reorganizes the viruses to avoid the presence of two of more consecutive viruses of the same color on the
  * same line. The rule applies to both rows and columns.
  * @param game Pointer to the game instance.
  */
@@ -46,7 +47,7 @@ void reorganize_viruses(struct game *game) {
   int x, y;
 
   int first_row = INVALIDE_ROWS;
-  int first_column = 2;
+  int first_column = 0;
 
   for (x = first_row; x < ROWS; x++) {
     for (y = first_column; y < COLUMNS; y++) {
@@ -54,18 +55,20 @@ void reorganize_viruses(struct game *game) {
       // If the cell is empty, then continue.
       if (game->grid[x][y].type == EMPTY)
         continue;
+      else
+        game->virus_count++;
 
       // This is the color of the virus at the coordinates `x`, `y`.
       int color = game->grid[x][y].color;
 
-      // True when there are two consecutive viruss of the same color on the same row or column.
-      bool invalid = (game->grid[x][y - 1].type == VIRUS && color == game->grid[x][y - 1].color &&
-                      game->grid[x][y - 2].type == VIRUS && color == game->grid[x][y - 2].color) ||
-                     (game->grid[x - 1][y].type == VIRUS && game->grid[x - 1][y].color &&
-                      game->grid[x - 2][y].type == VIRUS && color == game->grid[x - 2][y].color);
+      // True when there are two consecutive viruses of the same color on the same row or column.
+      bool invalid = (game->grid[x][y-1].type == VIRUS && color == game->grid[x][y-1].color &&
+                      game->grid[x][y-2].type == VIRUS && color == game->grid[x][y-2].color) ||
+                     (game->grid[x-1][y].type == VIRUS && game->grid[x-1][y].color &&
+                      game->grid[x-2][y].type == VIRUS && color == game->grid[x - 2][y].color);
 
-      // Se il mostro della presente cell è del medesimo color di quelli delle due celle precedenti della stessa
-      // row o column, allora assegna al mostro un altro color.
+      // If the current virus is of the same color of the two previous cells of the same row or column, then change
+      // the color of the current cell.
       if (invalid) {
         change_virus_color(game, x, y);
       }
@@ -83,7 +86,7 @@ char get_letter_color(enum color color) {
     case RED:
       return 'R';
     case YELLOW:
-      return 'G';
+      return 'Y';
     case BLUE:
       return 'B';
     default:
@@ -111,15 +114,26 @@ void print_grid(struct game *game) {
 
   // Prints the grid.
   for (int i = 0; i < ROWS; i++) {
+    if (i < 10)
+      printf("%d  ", i);
+    else
+      printf("%d ", i);
 
     // Prints one row of cells.
     for (int j = 0; j < COLUMNS; j++) {
-      // If there is a virus in the cell, then prints the letter correspondent to the virus's color, e.g. `R`.
-      // Otherwise prints a space.
-      if (game->grid[i][j].type == VIRUS)
-        printf("%c", get_letter_color(game->grid[i][j].color));
-      else
-        printf(" ");
+      // If there is a virus in the cell or a pill, then prints the letter correspondent to the virus's color, e.g. `R`.
+      // Use uppercase for viruses and lowercase for pills. If the cell is empty, prints `O`.
+      switch (game->grid[i][j].type) {
+        case VIRUS:
+          printf("%c", tolower(get_letter_color(game->grid[i][j].color)));
+          break;
+        case PILL:
+          printf("%c", get_letter_color(game->grid[i][j].color));
+          break;
+        default:
+          printf("#");
+          break;
+      }
     }
 
     printf("\n");
@@ -128,29 +142,17 @@ void print_grid(struct game *game) {
 
 
 /**
- * @brief Initializes eventual empty cells in the specified row, in case the loaded grid terminates with a new line
- * before it should.
+ * @brief Initially the grid has all empty cells.
  * @param game Pointer to the game instance.
- * @param r Current row.
- * @param c Current column.
  */
-void init_row(struct game *game, int r, int c) {
-  for (int i = c; i < COLUMNS; i++) {
-    game->grid[r][i].type = EMPTY;
-  }
-}
-
-
-/**
- * @brief Initializes all the empty cells in the grid, row by row.
- * @param game Pointer to the game instance.
- * @param r Current row.
- * @param c Current column.
- */
-void init_grid(struct game *game, int r, int c) {
-  for (int i = r; i < ROWS; i++) {
-    init_row(game, i, c);
-    c = 0;
+void init_grid(struct game *game) {
+  for (int i = 0; i < ROWS; i++) {
+    for (int j = 0; j < COLUMNS; j++) {
+      game->grid[i][j].id = 0;
+      game->grid[i][j].type = EMPTY;
+      game->grid[i][j].color = BLANK;
+      game->grid[i][j].to_be_emptied = false;
+    }
   }
 }
 
@@ -197,7 +199,7 @@ void load_grid(struct game *game, char *path) {
         game->grid[x][y].color = RED;
         y++;
         break;
-      case 'G':
+      case 'Y':
         game->grid[x][y].type = VIRUS;
         game->grid[x][y].color = YELLOW;
         y++;
@@ -208,16 +210,13 @@ void load_grid(struct game *game, char *path) {
         y++;
         break;
       case ' ':
-        game->grid[x][y].type = EMPTY;
         y++;
         break;
       case '\n':
-        init_row(game, x, y);
         x++;
         y = 0;
         break;
       case EOF:
-        init_grid(game, x, y);
         break;
       default:
         fprintf(stderr, "The file contains an invalid character.\n");
@@ -230,6 +229,7 @@ void load_grid(struct game *game, char *path) {
 
   reorganize_viruses(game);
 
+  printf("\ninitial grid\n");
   print_grid(game);
 }
 
@@ -239,7 +239,7 @@ void load_grid(struct game *game, char *path) {
  * @param vector A vector of integers.
  * @param n The vector's dimension.
  */
-void init_vector(int *vector, int n) {
+void generate_viruses(int *vector, int n) {
   for (int i = 0; i < n; i++) {
     // Assigns a number included between 0 and 2 to the cell, who represent the virus color.
     vector[i] = (rand() % 3);
@@ -254,7 +254,7 @@ void init_vector(int *vector, int n) {
  * @details The function uses the Fisher–Yates shuffle.
  * @see https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle#The_modern_algorithm
  */
-void shuffle_vector(int *vector, int n) {
+void shuffle_viruses(int *vector, int n) {
   int i, j, tmp;
 
   for (i = n - 1; i > 0; i--) {
@@ -272,7 +272,7 @@ void shuffle_vector(int *vector, int n) {
  * @param n Vector's dimension.
  * @param r Number of elements to be removed.
  */
-void prune_vector(int *vector, int n, int r) {
+void prune_viruses(int *vector, int n, int r) {
   int k = 0;
 
   while (k < r) {
@@ -325,7 +325,7 @@ void assign_viruses(struct game *game, const int *vector) {
 
 /**
  * @brief Fills the grid with the viruses.
- * @details The viruses are distrubuted ont he grid using the following strategy:\n
+ * @details The viruses are distributed on the grid using the following strategy:\n
  *   - creates a vector with a number of elements equal to the available cells of the matrix, excluding so the first
  *   5 rows of the grid;\n
  *   - initializes the vector assigning to every element a value included between 0 and 2, which represents the virus type;\n
@@ -348,17 +348,14 @@ void fill_grid(struct game *game, int difficulty) {
   // Number of viruses based on the difficulty and the cells count.
   const int virus_count = cell_count - (4 * (difficulty + 1));
 
-  // Declares a vector witht only the cells available on the grid, to be used later to assign the viruses.
+  // Declares a vector with only the cells available on the grid, to be used later to assign the viruses.
   int cells[cell_count];
 
-  init_vector(cells, cell_count);
-  prune_vector(cells, cell_count, virus_count);
-  shuffle_vector(cells, cell_count);
-
+  generate_viruses(cells, cell_count);
+  prune_viruses(cells, cell_count, virus_count);
+  shuffle_viruses(cells, cell_count);
   assign_viruses(game, cells);
-  print_grid(game);
   reorganize_viruses(game);
-  print_grid(game);
 }
 
 
@@ -378,17 +375,21 @@ void swap_color(struct pill *pill) {
  * @details The marked cells can be emptied, all together, in a following step.
  * @param game Pointer to the game instance.
  * @param direction Direction of the line,
- * @param x X-axis coordinate.
- * @param y Y-axis coordinate.
+ * @param index Index of the line (row o column) to be processed.
+ * @param offset Position on the row or column.
  * @param repetitions Number of repetitions.
  */
-void mark_cells(struct game *game, enum direction direction, int x, int y, int repetitions) {
+void mark_cells_for_emptying(struct game *game, enum direction direction, int index, int offset, int repetitions) {
 
-  for (int k = repetitions; k > 0; k--) {
-    if (direction == HORIZONTAL)
-      game->grid[x,y]->to_be_emptied = true;
-    else
-      game->grid[y,x]->to_be_emptied = true;
+  for (int i = repetitions; i >= 0; i--) {
+    switch (direction) {
+      case HORIZONTAL:
+        game->grid[index][offset - i].to_be_emptied = true;
+        break;
+      case VERTICAL:
+        game->grid[offset - i][index].to_be_emptied = true;
+        break;
+    }
   }
 
 }
@@ -397,15 +398,47 @@ void mark_cells(struct game *game, enum direction direction, int x, int y, int r
 /**
  * @brief Empty the marked cells.
  * @param game Pointer to the game instance.
+ * @return bool Returns `true` if any cells have been emptied, `false` otherwise.
  */
-void empty_cells(struct game *game) {
-  for (int x = 0; x < ROWS; x++) {
-    for (int y = 0; y < COLUMNS; y++) {
-      if (game->grid[x, y]->to_be_emptied) {
-        game->grid[x, y]->type = EMPTY;
+bool empty_cells(struct game *game) {
+  bool is_changed = false;
+  struct cell *cell;
+  int virus_killed = 0;
+
+
+  for (int r = 0; r < ROWS; r++) {
+    for (int c = 0; c < COLUMNS; c++) {
+      cell = &game->grid[r][c];
+
+      if (cell->to_be_emptied) {
+
+        if (cell->type == VIRUS)
+          virus_killed++;
+
+        cell->id = 0;
+        cell->type = EMPTY;
+        cell->color = BLANK;
+        cell->to_be_emptied = false;
+
+        is_changed = true;
       }
     }
   }
+
+  int points = 0;
+  for (int i = 1; i <= virus_killed; i++)
+    points += (int)(game->points_multiplier * (100 * pow(2, i)));
+
+  if (virus_killed > 0) {
+    game->virus_count -= virus_killed;
+    game->score += points;
+    game->points_multiplier *= 2;
+  }
+
+  printf("\nadjacent pills and viruses have been removed from the grid\n");
+  print_grid(game);
+
+  return is_changed;
 }
 
 
@@ -416,50 +449,186 @@ void empty_cells(struct game *game) {
  * @param index Index of the line (row o column) to be processed.
  */
 void process_line(struct game *game, enum direction direction, int index) {
-  int i = 0;
-  int j = index;
+  int i = index;
 
   int limit;
-  int repetitions = 1;
+  int repetitions = 0;
 
   if (direction == HORIZONTAL)
     limit = COLUMNS - 1;
   else
     limit = ROWS - 1;
 
-  for (j; j < limit; j++) {
-    struct cell *current_cell;
+  for (int j = 0; j < limit; j++) {
     struct cell *next_cell;
+    struct cell *current_cell;
 
     // Determine the current cell and the next one in function of the direction.
     if (direction == HORIZONTAL) {
-      current_cell = game->grid[i,j];
-      next_cell = game->grid[i, j + 1];
+      current_cell = &game->grid[i][j];
+      next_cell = &game->grid[i][j+1];
     }
     else {
-      current_cell = game->grid[j,i];
-      next_cell = game->grid[j + 1,i];
+      current_cell = &game->grid[j][i];
+      next_cell = &game->grid[j+1][i];
     }
 
-    if (current_cell->color == next_cell->color &&
-        (current_cell->type == PILL || current_cell->type == VIRUS) &&
-        (next_cell->type == PILL || next_cell->type == VIRUS)) {
+    if (current_cell->color == BLANK) {
+      repetitions = 0;
+      continue;
+    }
 
-      // Increment the number of repetitions.
+    if (current_cell->color == next_cell->color) {
       repetitions++;
 
-      if (i == (limit - 1))
-        mark_cells(game, direction, i, j, repetitions);
+      if (j+1 == limit && repetitions >= MIN_ELEMENTS-1)
+        mark_cells_for_emptying(game, direction, i, limit, repetitions);
     }
     else {
-      if (repetitions >= 4)
-        mark_cells(game, direction, i, j, repetitions);
+      if (repetitions >= MIN_ELEMENTS-1)
+        mark_cells_for_emptying(game, direction, i, j, repetitions);
 
-      repetitions = 1;
+      repetitions = 0;
     }
   }
+}
 
-  empty_cells(game);
+
+/**
+ * @brief Given the coordinates of a cell, returns the last empty cell row.
+ * @param game Pointer to the game instance.
+ * @param orientation Horizontal for x-axis or vertical for y-axis.
+ * @param row Position on the y-axis.
+ * @param column Position on the x-axis.
+ * @return int
+ */
+int get_empty_cell_row_by_column(struct game *game, enum direction orientation, int row, int column) {
+  int r = row;
+  int c = column;
+
+  while (r < ROWS-1) {
+
+    if (game->grid[r+1][c].type == EMPTY && (orientation == VERTICAL || (orientation == HORIZONTAL && game->grid[r+1][c+1].type == EMPTY)))
+      r++;
+    else
+      break;
+
+  }
+
+  return r;
+}
+
+
+/**
+ * @brief Move the pill's halves down to the end of stroke.
+ * @param first_half First half of the pill.
+ * @param second_half Second half of the pill.
+ * @param target_first_half Target cell for the first half of the pill.
+ * @param target_second_half Target cell for the second half of the pill.
+ */
+void move_halves(struct cell *first_half, struct cell *second_half,
+                 struct cell *target_first_half, struct cell *target_second_half) {
+
+  target_first_half->id = first_half->id;
+  target_first_half->type = first_half->type;
+  target_first_half->color = first_half->color;
+
+  first_half->id = 0;
+  first_half->type = EMPTY;
+  first_half->color = BLANK;
+
+  if (!second_half)
+    return;
+
+  target_second_half->id = second_half->id;
+  target_second_half->type = second_half->type;
+  target_second_half->color = second_half->color;
+
+  second_half->id = 0;
+  second_half->type = EMPTY;
+  second_half->color = BLANK;
+}
+
+
+/**
+ * @brief After the grid has been processed, shakes the grid so the pill's halves can drop till they find a virus, another
+ * pill or the bottom of the grid.
+ * @param game Pointer to the game instance.
+ * @return bool Returns `true` if the grid changed and need to be processed again.
+ */
+bool shake_grid(struct game *game) {
+  bool is_changed = false;
+
+  // Because halves on the row 16 (which is identified as 15, since we start from 0) are already on the bottom of the
+  // grid, therefore cannot fall, we start when `i` is equal to 14, so we do not process the last row. We also process
+  // the rows from the bottom to the top, so in the inverse order, consider 0,0 is in the top left corner of the grid.
+  for (int r = ROWS - 2; r > 0; r--) {
+    for (int c = 0; c < COLUMNS; c++) {
+      int new_row;
+
+      // We can only drop pill's halves, not the viruses.
+      if (game->grid[r][c].type == PILL) {
+        // Now we know it's a pill fragment, we need to check if there is any adjacent fragment, which is part of the
+        // same pill. To be sure the other half belongs to the same pill, the ID has to match.
+        struct cell *first_half = &game->grid[r][c];
+
+        // We have to check if the is there is one part of the pill above, because we start from the bottom.
+        if (game->grid[r][c].id == game->grid[r-1][c].id) {
+          // If the other half of the pill is above, then the pill can be dropped, without any further check.
+
+          new_row = get_empty_cell_row_by_column(game, VERTICAL, r, c);
+
+          if (new_row != r) {
+            struct cell *second_half = &game->grid[r-1][c];
+            struct cell *target_first_half = &game->grid[new_row][c];
+            struct cell *target_second_half = &game->grid[new_row-1][c];
+
+            move_halves(first_half, second_half, target_first_half, target_second_half);
+            is_changed = true;
+          }
+
+          continue;
+        }
+
+        // In case the other half is not above, can be beside.
+        if (c+1 < ROWS && game->grid[r][c].id == game->grid[r][c+1].id) {
+          new_row = get_empty_cell_row_by_column(game, HORIZONTAL, r, c);
+
+          if (new_row != r) {
+            struct cell *second_half = &game->grid[r][c+1];
+            struct cell *target_first_half = &game->grid[new_row][c];
+            struct cell *target_second_half = &game->grid[new_row][c+1];
+
+            move_halves(first_half, second_half, target_first_half, target_second_half);
+            is_changed = true;
+
+            // We increment `c` so we do not check the next fragment again. This will skip the next column `c+1`, because
+            // it has been already processed for the current row `r`.
+            //c++;
+          }
+
+          // In case the other half is beside, we need to check if cells below the halves are both empty.
+          continue;
+        }
+
+        // The pill can be dropped because it's constituted of a single fragment.
+        new_row = get_empty_cell_row_by_column(game, VERTICAL, r, c);
+
+        if (new_row != r) {
+          struct cell *target_first_half = &game->grid[new_row][c];
+          move_halves(first_half, NULL, target_first_half, NULL);
+          is_changed = true;
+        }
+      }
+
+    }
+
+  }
+
+  printf("\nthe grid has been shaked\n");
+  print_grid(game);
+
+  return is_changed;
 }
 
 
@@ -468,26 +637,32 @@ void process_line(struct game *game, enum direction direction, int index) {
  * @param game Pointer to the game instance.
  */
 void process_grid(struct game *game) {
-  for (int i = 0; i < COLUMNS; i++)
-    process_line(game, HORIZONTAL, i);
-
-  for (int i = 0; i < ROWS; i++)
-    process_line(game, VERTICAL, i);
-}
-
-
-/**
- * @brief Updates the content of the grid cells where the two halves that constitute the active pill are located.
- * @param game Pointer to the game instance.
- */
-void update_content(struct game *game, enum content type) {
-  struct pill *p = &game->pill;
-
-  if (!p->active)
+  if (game->pill.active)
     return;
 
-  game->grid[p->first_half.row][p->first_half.column].type = type;
-  game->grid[p->second_half.row][p->second_half.column].type = type;
+  for (int i = ROWS-1; i >= 0; i--)
+    process_line(game, HORIZONTAL, i);
+
+  for (int i = 0; i < COLUMNS; i++)
+    process_line(game, VERTICAL, i);
+
+  // If the pill didn't kill any viruses, or it didn't clear other pills, then the function return, because there is no
+  // need for shaking and processing.
+  if (!empty_cells(game))
+    return;
+
+  // Call itself recursively if there was any change in the grid.
+  if (shake_grid(game)) {
+    process_grid(game);
+  }
+
+  // After we have shaken the grid, even multiple times, the multiplier has to be reinstated to the initial value.
+  game->points_multiplier = 1;
+
+  if (game->virus_count == 0) {
+    game->status = VICTORY;
+    return;
+  }
 }
 
 
@@ -495,8 +670,18 @@ void update_content(struct game *game, enum content type) {
  * @brief Removes the current pill from the grid.
  * @param game Pointer to the game instance.
  */
-void remove_pill(struct game *game) {
-  update_content(game, EMPTY);
+void remove_active_pill_from_grid(struct game *game) {
+  struct pill *p = &game->pill;
+
+  if (!p->active)
+    return;
+
+  game->grid[p->first_half.row][p->first_half.column].id = 0;
+  game->grid[p->second_half.row][p->second_half.column].id = 0;
+  game->grid[p->first_half.row][p->first_half.column].type = EMPTY;
+  game->grid[p->second_half.row][p->second_half.column].type = EMPTY;
+  game->grid[p->first_half.row][p->first_half.column].color = BLANK;
+  game->grid[p->second_half.row][p->second_half.column].color = BLANK;
 }
 
 
@@ -504,43 +689,45 @@ void remove_pill(struct game *game) {
  * @brief Restores the current pill on the grid.
  * @param game Pointer to the game instance.
  */
-void restore_pill(struct game *game) {
-  update_content(game, PILL);
+void restore_active_pill_to_grid(struct game *game) {
+  struct pill *p = &game->pill;
+
+  if (!p->active)
+    return;
+
+  game->grid[p->first_half.row][p->first_half.column].id = p->id;
+  game->grid[p->second_half.row][p->second_half.column].id = p->id;
+  game->grid[p->first_half.row][p->first_half.column].type = PILL;
+  game->grid[p->second_half.row][p->second_half.column].type = PILL;
+  game->grid[p->first_half.row][p->first_half.column].color = p->first_half.color;
+  game->grid[p->second_half.row][p->second_half.column].color = p->second_half.color;
 }
 
 
 /**
- * @brief Refreshes the grid, repositioning the two halves of the pill on the grid.
+ * @brief Refreshes the grid because the pill moved.
  * @param game Pointer to the game instance.
  */
 void refresh_grid(struct game *game) {
-  if (!game->refresh_grid)
+  struct pill *pill = &game->pill;
+  struct pill *moving_pill = &game->moving_pill;
+
+  if (!pill->active )
     return;
 
-  game->refresh_grid = false;
-
-  struct pill *pill = &game->pill;
-  struct pill *temp = &game->tmp_pill;
-
-  // Old coordinates of the pill's halves.
-  int or1 = pill->first_half.row;
-  int oc1 = pill->first_half.column;
-  int or2 = pill->second_half.row;
-  int oc2 = pill->second_half.column;
-
   // New coordinates of the pill's halves.
-  int r1 = temp->first_half.row;
-  int c1 = temp->first_half.column;
-  int r2 = temp->second_half.row;
-  int c2 = temp->second_half.column;
+  int r1 = moving_pill->first_half.row;
+  int c1 = moving_pill->first_half.column;
+  int r2 = moving_pill->second_half.row;
+  int c2 = moving_pill->second_half.column;
 
-  // Temporarily removes the pill, so, when the grid is verified, there aren't interferences.
-  remove_pill(game);
+  // Removes the pill from the grid, to restore it after in a different position.
+  remove_active_pill_from_grid(game);
 
-  // If the pill is outside the grid perimeter, then the command is invalid, therefore the control returns to the caller
-  // function.
+  // If the pill is outside the grid perimeter, then the command is invalid, therefore the pill is restored on the grid
+  // and the control returns to the caller function.
   if (r1 > ROWS - 1 || c1 > COLUMNS - 1 || r2 > ROWS - 1 || c2 > COLUMNS - 1 || c1 < 0 || c2 < 0) {
-    restore_pill(game);
+    restore_active_pill_to_grid(game);
     return;
   }
 
@@ -553,43 +740,41 @@ void refresh_grid(struct game *game) {
     // In such a case a further check has to be done to be sure the pill is exactly in the middle of the first row. If
     // so, in virtue of the fact the cells are already taken, the game is over, therefore the state of the game doesn't
     // change.
-    if (r1 == 0 && c1 == (COLUMNS / 2) - 1) {
+    if (r1 == 0 && c1 == (COLUMNS / 2) - 1)
       game->status = DEFEAT;
-    }
 
-    restore_pill(game);
+    restore_active_pill_to_grid(game);
     return;
   }
 
   // REPOSITION THE PILL
 
   // Inserts the first half of the pill on the grid.
+  game->grid[r1][c1].id = moving_pill->id;
   game->grid[r1][c1].type = PILL;
-  game->grid[r1][c1].color = temp->first_half.color;
+  game->grid[r1][c1].color = moving_pill->first_half.color;
 
   // Proceeds with the second half if inside the grid.
-  if (r2 >= 0) {
-    game->grid[r2][c2].type = PILL;
-    game->grid[r2][c2].color = temp->second_half.color;
-  }
+  game->grid[r2][c2].id = moving_pill->id;
+  game->grid[r2][c2].type = PILL;
+  game->grid[r2][c2].color = moving_pill->second_half.color;
 
-  // A pill gets disactivated when reaches the end of stroke, therefore in the following cases:
+  // A pill gets deactivated when reaches the end of stroke, therefore in the following cases:
   //   - it's at the bottom, namely the last row of the grid;
-  //   - below the first half there is not an empty cell, but a monster or a pill;
+  //   - below the first half there is not an empty cell, but a virus or a pill;
   //   - when the pill is horizontal and below the second half there is not an empty cell.
   if (r1 == ROWS - 1 ||
-      (game->grid[r1 + 1][c1].type != EMPTY) ||
-      (temp->orientation == HORIZONTAL && game->grid[r2 + 1][c2].type != EMPTY)) {
-    temp->active = false;
+      (game->grid[r1+1][c1].type != EMPTY) ||
+      (moving_pill->orientation == HORIZONTAL && game->grid[r2 + 1][c2].type != EMPTY)) {
+    moving_pill->active = false;
   }
 
   // Assigns to the active pill, the copy.
-  memcpy(pill, temp, sizeof(struct pill));
+  memcpy(pill, moving_pill, sizeof(struct pill));
 
   game->status = RUNNING;
 
-  //if (!pill->active)
-  //process_grid(game);
+  process_grid(game);
 }
 
 
@@ -600,10 +785,8 @@ void refresh_grid(struct game *game) {
  * @param direction The direction of rotation. A pill can rotate clockwise or anti-clockwise.
  */
 void rotate_pill(struct game *game, enum rotation direction) {
-  if (!game->pill.active) {
-    game->refresh_grid = false;
+  if (!game->pill.active)
     return;
-  }
 
   // Assigns the pill to a temporary variable.
   struct pill temp = game->pill;
@@ -638,8 +821,7 @@ void rotate_pill(struct game *game, enum rotation direction) {
       break;
   }
 
-  game->tmp_pill = temp;
-  game->refresh_grid = true;
+  game->moving_pill = temp;
 }
 
 
@@ -651,10 +833,8 @@ void rotate_pill(struct game *game, enum rotation direction) {
  * @param direction Direction of the pill.
  */
 void move_pill(struct game *game, enum command direction) {
-  if (!game->pill.active) {
-    game->refresh_grid = false;
+  if (!game->pill.active)
     return;
-  }
 
   // Use a temporary variable to store the pill.
   struct pill temp = game->pill;
@@ -701,8 +881,7 @@ void move_pill(struct game *game, enum command direction) {
       return;
   }
 
-  game->tmp_pill = temp;
-  game->refresh_grid = true;
+  game->moving_pill = temp;
 }
 
 
@@ -726,7 +905,20 @@ void create_pill(struct game *game) {
   game->pill.first_half.color = (enum color) get_random_color();
   game->pill.second_half.color = (enum color) get_random_color();
 
+  // DEBUG ONLY
+  //game->pill.first_half.color = (enum color) RED;
+  //game->pill.second_half.color = (enum color) RED;
+
+  game->pills_count++;
+
+  // Every pill must have an identifier. It is used to identify two halves of the same pill in the grid.
+  game->pill.id = game->pills_count;
+
   game->pill.active = true;
+
+  // When we create a new pill, we also move it at the center top of the grid, therefore the moving pill coincides with
+  // the pill.
+  game->moving_pill = game->pill;
 }
 
 
@@ -764,8 +956,7 @@ void execute(struct game *game, enum command command) {
     case NONE:
       if (!game->pill.active)
         create_pill(game);
-      else
-        move_pill(game, NONE);
+      move_pill(game, NONE);
       break;
 
     default:
